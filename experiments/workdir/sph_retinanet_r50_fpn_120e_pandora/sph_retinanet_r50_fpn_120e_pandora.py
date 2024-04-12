@@ -29,8 +29,8 @@ lr_config = dict(
     warmup_ratio=0.001,
     step=[80, 110])
 runner = dict(type='EpochBasedRunner', max_epochs=120)
-dataset_type = 'INDOOR360'
-data_root = 'datasets/360INDOOR/'
+dataset_type = 'PANDORA'
+data_root = 'datasets/PANDORA/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
@@ -68,9 +68,9 @@ data = dict(
     samples_per_gpu=4,
     workers_per_gpu=2,
     train=dict(
-        type='INDOOR360',
-        ann_file='datasets/360INDOOR/annotations/instances_train2017.json',
-        img_prefix='datasets/360INDOOR/images/train2017/',
+        type='PANDORA',
+        ann_file='datasets/PANDORA/annotations/train.json',
+        img_prefix='datasets/PANDORA/images/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(type='LoadAnnotations', with_bbox=True),
@@ -85,9 +85,9 @@ data = dict(
             dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels'])
         ]),
     val=dict(
-        type='INDOOR360',
-        ann_file='datasets/360INDOOR/annotations/instances_val2017.json',
-        img_prefix='datasets/360INDOOR/images/val2017/',
+        type='PANDORA',
+        ann_file='datasets/PANDORA/annotations/test.json',
+        img_prefix='datasets/PANDORA/images/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -107,9 +107,9 @@ data = dict(
                 ])
         ]),
     test=dict(
-        type='INDOOR360',
-        ann_file='datasets/360INDOOR/annotations/instances_val2017.json',
-        img_prefix='datasets/360INDOOR/images/val2017/',
+        type='PANDORA',
+        ann_file='datasets/PANDORA/annotations/test.json',
+        img_prefix='datasets/PANDORA/images/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -151,7 +151,7 @@ model = dict(
     bbox_head=dict(
         type='SphRetinaHead',
         box_version=4,
-        num_classes=37,
+        num_classes=47,
         in_channels=256,
         stacked_convs=4,
         feat_channels=256,
@@ -196,6 +196,6 @@ model = dict(
         max_per_img=100,
         iou_calculator='unbiased_iou',
         box_formator='sph2pix'))
-work_dir = 'experiments/workdir/sph_retinanet_r50_fpn_120e_indoor360'
+work_dir = 'experiments/workdir/sph_retinanet_r50_fpn_120e_pandora'
 auto_resume = False
 gpu_ids = [0]

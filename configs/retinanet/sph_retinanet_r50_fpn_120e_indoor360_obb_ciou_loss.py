@@ -10,5 +10,5 @@ model = dict(
         loss_bbox=dict(
             _delete_=True,
             type='Sph2PobIoULoss',
-            mode='ciou',
+            mode='iou',
             loss_weight=1.0)))

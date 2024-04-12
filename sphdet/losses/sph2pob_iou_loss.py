@@ -1,5 +1,5 @@
 import math
-
+import pdb
 import torch
 import torch.nn as nn
 from mmcv.ops import diff_iou_rotated_2d
@@ -29,6 +29,10 @@ class OBBIoULoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
+        
+
+        #aqui a sph2pobiouloss!!!!!  
+
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -53,6 +57,51 @@ class OBBIoULoss(nn.Module):
             **kwargs)
         return loss
 
+
+
+
+import math
+
+def image_y_to_latitude(cy, image_height):
+    """Converts image Y-coordinate to latitude in an equirectangular projection.
+
+    Args:
+        cy (float or torch.Tensor): Y-coordinate of the bounding box center. 
+                                     Can be a single value or a tensor.
+        image_height (float): Height of the ERP image.
+
+    Returns:
+        float or torch.Tensor: Latitude in degrees, matching the input type of cy.
+    """
+    if isinstance(cy, torch.Tensor):
+        normalized_y = (cy / image_height) - 0.5
+        latitude_radians = math.pi * normalized_y
+        latitude_degrees = latitude_radians.to(torch.float)  # Ensure float output
+    else:  # cy is a single float
+        normalized_y = (cy / image_height) - 0.5 
+        latitude_radians = math.pi * normalized_y
+        latitude_degrees = math.degrees(latitude_radians)
+    return latitude_degrees
+
+def latitude_weighting(latitude, divisor=90.0):
+    """Calculates a weight based on the latitude.
+
+    Args:
+        latitude (float or torch.Tensor): Latitude in degrees.
+        divisor (float): Parameter to adjust the weighting curve (default: 90.0).
+
+    Returns:
+        float or torch.Tensor: Weight factor between 0 and 1, matching the input type. 
+    """
+    if isinstance(latitude, torch.Tensor):
+        weight = 1.0 - torch.abs(latitude) / divisor
+    else: 
+        weight = 1.0 - abs(latitude) / divisor
+    return weight
+
+
+
+
 @weighted_loss
 def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     r"""Several versions of iou-based loss for OBB.
@@ -70,10 +119,24 @@ def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     
     #_pred, _target = pred.clone(), target.clone()
     #_pred, _target = jiter_rotated_bboxes(_pred, _target)
+    #pdb.set_trace()
+
     ious = diff_iou_rotated_2d(pred.unsqueeze(0), target.unsqueeze(0)).squeeze().clamp(min=0, max=1.0)
 
+    # Calculate latitude weights for predicted and target boxes
+    pred_cy = pred[:, 1]  
+    target_cy = target[:, 1]
+
+    pred_weights = latitude_weighting(image_y_to_latitude(pred_cy, 256))
+    target_weights = latitude_weighting(image_y_to_latitude(target_cy, 256))
+
+    # Average or combine weights as needed 
+    latitude_weight = 0.5 * (pred_weights + target_weights) 
+
+    weighted_ious = ious * latitude_weight
+
     if mode == 'iou':
-        loss = 1 - ious.clamp(min=0, max=1.0)
+        loss = 1 - weighted_ious.clamp(min=0, max=1.0)
         return loss
 
     hbb_pred = obb2hbb_xyxy(pred)
@@ -210,6 +273,7 @@ class SphIoULoss(nn.Module):
             # giou_loss of shape (n,) 
             assert weight.shape == pred.shape
             weight = weight.mean(-1)
+
         loss = self.loss_weight * sph_iou_loss(
             pred,
             target,
