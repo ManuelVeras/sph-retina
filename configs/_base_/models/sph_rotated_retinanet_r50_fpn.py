@@ -15,7 +15,7 @@ model = dict(
             pos_iou_thr=0.5,
             neg_iou_thr=0.3,
             min_pos_iou=0,
-            iou_calculator=dict(
+            iou_calculator=dict(backend = 'sph2pob_efficient_iou',
                 box_version=5)),),
     test_cfg=dict(
         nms=dict(

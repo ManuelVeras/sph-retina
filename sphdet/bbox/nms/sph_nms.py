@@ -1,4 +1,5 @@
 import torch
+import sys
 
 from sphdet.iou import unbiased_iou, naive_iou, sph2pob_standard_iou, sph2pob_efficient_iou
 
@@ -21,8 +22,10 @@ class SphNMS:
 def sph_batched_nms(boxes, scores, idxs, nms_cfg, iou_calculator, class_agnostic=False):
     # skip nms when nms_cfg is None
     if nms_cfg is None:
+        print('nms nao configurado!!!')
         scores, inds = scores.sort(descending=True)
         boxes = boxes[inds]
+        sys.exit()
         return torch.cat([boxes, scores[:, None]], -1), inds
 
     nms_cfg_ = nms_cfg.copy()

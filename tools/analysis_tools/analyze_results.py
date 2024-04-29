@@ -339,7 +339,7 @@ def parse_args():
     parser.add_argument(
         '--box_version',
         type=int,
-        default=4,
+        default=5,
         help='(0)planar|(4)bfov|(5)bfov'
     )
     args = parser.parse_args()

@@ -62,6 +62,8 @@ class OBBIoULoss(nn.Module):
 
 import math
 
+
+#acredito que já esteja normalizado... corigiir isso
 def image_y_to_latitude(cy, image_height):
     """Converts image Y-coordinate to latitude in an equirectangular projection.
 
@@ -133,7 +135,7 @@ def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     # Average or combine weights as needed 
     latitude_weight = 0.5 * (pred_weights + target_weights) 
 
-    weighted_ious = ious * latitude_weight
+    weighted_ious = ious #* latitude_weight
 
     if mode == 'iou':
         loss = 1 - weighted_ious.clamp(min=0, max=1.0)

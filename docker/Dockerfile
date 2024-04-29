@@ -17,6 +17,7 @@ RUN pip install openmim && \
     mim install mmcv-full==1.6.0 mmdet==2.25.2 mmrotate==0.3.2 && \
     pip install torch==1.11.0 torchvision==0.12.0
 
+
 # The COPY, WORKDIR, and subsequent instructions remain unchanged.
 
 
@@ -41,4 +42,3 @@ RUN cd /mmdetection
 # \&& pip install --no-cache-dir -e .
 
 WORKDIR /mmdetection-2.x
-

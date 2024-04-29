@@ -12,8 +12,9 @@ from sphdet.bbox.box_formator import _sph2pix_box_transform, xywh2xyxy, obb2hbb_
 
 @HEADS.register_module()
 class SphShared2FCBBoxHead(Shared2FCBBoxHead):
-    def __init__(self, box_version=4, *args, **kwargs):
+    def __init__(self, box_version=4, anchor_generator = None, *args, **kwargs):
         self.box_version = box_version
+        self.anchor_generator = anchor_generator
         super().__init__(*args, **kwargs)
         if self.with_reg:
             out_dim_reg = (box_version if self.reg_class_agnostic else box_version *

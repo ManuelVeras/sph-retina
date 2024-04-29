@@ -1,5 +1,5 @@
 model = dict(
-    type='RetinaNet',
+    type='FasterRCNN',
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -64,5 +64,8 @@ model = dict(
         score_thr=0.05,
         nms=dict(type='nms', iou_threshold=0.5),
         max_per_img=100,
-        iou_calculator='planar',
+        iou_calculator=dict(
+                type='SphOverlaps2D',
+                backend='xinyuan',
+                box_version=4),
         box_formator='sph2pix'))
