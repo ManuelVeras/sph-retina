@@ -30,8 +30,8 @@ def generate_kent_samples(mean_dir, kappa, beta, size):
 
 # Parameters for Kent distribution 
 mean_direction = np.array([0.5, 0.5, 0.707]) 
-kappa = 100      
-beta = 0 
+kappa = 5      
+beta = 2
 num_samples = 1000
 
 # Generate grid
@@ -54,7 +54,7 @@ ax = fig.add_subplot(111, projection='3d')
 ax.plot_surface(x, y, z, rstride=5, cstride=5, color='lightgray', alpha=0.5)
 
 # Plot the samples
-ax.scatter(x_samples, y_samples, z_samples, s=10, color='blue')  
+ax.scatter(x_samples, y_samples, z_samples, s=10, color='red')  
 
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
