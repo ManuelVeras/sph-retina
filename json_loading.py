@@ -3,6 +3,7 @@
 import ijson
 import json
 from decimal import Decimal
+import pdb
 
 # Define the filename of the JSON file
 input_filename = 'datasets/360INDOOR/annotations/instances_val2017.json'
@@ -28,6 +29,7 @@ with open(input_filename, 'r') as file:
         obj['area'] = float(obj['area']) if isinstance(obj['area'], Decimal) else obj['area']
         
         # Transform the bbox values
+        pdb.set_trace()
         obj['bbox'] = transform_bbox(obj['bbox'])
         
         # Add the transformed object to the list
