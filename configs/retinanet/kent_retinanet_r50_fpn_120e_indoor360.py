@@ -3,7 +3,7 @@ _base_ = [
     '../_base_/default_runtime.py',
     '../_base_/schedules/schedule_120e.py',
     '../_base_/datasets/indoor360.py',
-    '../_base_/models/sph_retinanet_r50_fpn.py',
+    '../_base_/models/kent_retinanet_r50_fpn.py',
 ]
 
 # log
