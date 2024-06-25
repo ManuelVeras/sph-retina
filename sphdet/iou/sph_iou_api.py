@@ -9,6 +9,7 @@ from .sph2pob_legacy import sph2pob_legacy
 from .sph2pob_standard import sph2pob_standard
 from .unbiased_iou_bfov import Sph as BFOV
 from .unbiased_iou_rbfov import Sph as RBFOV
+from .kent_standard import kent_iou
 
 #from .diff_iou_rotated import diff_iou_rotated_2d # Fix some bugs in mmcv.ops.diff_iou_rotated
 
@@ -148,6 +149,36 @@ def sph_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, calculator='diff'):
     
     overlaps = overlaps if is_aligned else overlaps.view((rows, cols))
     return overlaps.clamp(min=0, max=1)
+
+# ---------------------------------------------------------------------------- #
+#                                    KENT-"IoU"                                   #
+# ---------------------------------------------------------------------------- #
+
+def kent_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, calculator='diff'):
+    assert mode in ['iou']
+
+    rows = bboxes1.size(0)
+    cols = bboxes2.size(0)
+
+    if rows * cols == 0:
+        return bboxes1.new(rows, 1) if is_aligned else bboxes1.new(rows, cols)
+
+    if not is_aligned:
+        bboxes1 = bboxes1.repeat_interleave(cols, dim=0)
+        bboxes2 = bboxes2.repeat((rows, 1))
+    else:
+        bboxes1 = bboxes1.clone()
+        bboxes2 = bboxes2.clone()
+    assert bboxes1.size(0) == bboxes2.size(0)
+
+    #NOTE: is jitter nedded in this case?
+    #bboxes1, bboxes2 = jiter_spherical_bboxes(bboxes1, bboxes2)
+    #iou: A tensor of shape (N,), representing the IoU for each pair of ground truth and predicted spherical coordinates.
+    overlaps = kent_iou(bboxes1, bboxes2)
+    
+    overlaps = overlaps if is_aligned else overlaps.view((rows, cols))
+    return overlaps.clamp(min=0, max=1)
+
 
 # ---------------------------------------------------------------------------- #
 #                                    Fov-IoU                                   #
