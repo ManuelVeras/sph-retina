@@ -1,6 +1,7 @@
 import torch
 from mmdet.core.anchor import AnchorGenerator
 from mmdet.core.anchor.builder import ANCHOR_GENERATORS
+import pdb
 
 from sphdet.bbox.box_formator import Planar2SphBoxTransform
 
@@ -11,11 +12,12 @@ class SphAnchorGenerator(AnchorGenerator):
 
     Horizontal bounding box represented by (theta, phi, alpha, beta).
     """
-    def __init__(self, box_formator='sph2pix', box_version=4, *args, **kwargs):
+    def __init__(self, box_formator='sph2pix', box_version=5, *args, **kwargs):
         super(SphAnchorGenerator, self).__init__(*args, **kwargs)
         assert box_formator in ['sph2pix', 'pix2sph', 'sph2tan', 'tan2sph']
         assert box_version in [4, 5]
         self.box_formator = Planar2SphBoxTransform(box_formator, box_version)
+        pdb.set_trace()
 
 
     def single_level_grid_priors(self,
