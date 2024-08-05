@@ -60,8 +60,8 @@ class OBBIoULoss(nn.Module):
 
 
 
-import math
 
+# ---------------------------------------------------------------------------- #
 
 #acredito que já esteja normalizado... corigiir isso
 def image_y_to_latitude(cy, image_height):
@@ -101,9 +101,6 @@ def latitude_weighting(latitude, divisor=90.0):
         weight = 1.0 - abs(latitude) / divisor
     return weight
 
-
-
-
 @weighted_loss
 def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     r"""Several versions of iou-based loss for OBB.
@@ -121,7 +118,6 @@ def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     
     #_pred, _target = pred.clone(), target.clone()
     #_pred, _target = jiter_rotated_bboxes(_pred, _target)
-    #pdb.set_trace()
 
     ious = diff_iou_rotated_2d(pred.unsqueeze(0), target.unsqueeze(0)).squeeze().clamp(min=0, max=1.0)
 
@@ -129,11 +125,13 @@ def obb_iou_loss(pred, target, mode='iou', eps=1e-7):
     pred_cy = pred[:, 1]  
     target_cy = target[:, 1]
 
-    pred_weights = latitude_weighting(image_y_to_latitude(pred_cy, 256))
-    target_weights = latitude_weighting(image_y_to_latitude(target_cy, 256))
+    #pdb.set_trace()
+
+    #pred_weights = latitude_weighting(image_y_to_latitude(pred_cy, 256))
+    #target_weights = latitude_weighting(image_y_to_latitude(target_cy, 256))
 
     # Average or combine weights as needed 
-    latitude_weight = 0.5 * (pred_weights + target_weights) 
+    #latitude_weight = 0.5 * (abs(pred_cy) + abs(target_cy)) 
 
     weighted_ious = ious #* latitude_weight
 
