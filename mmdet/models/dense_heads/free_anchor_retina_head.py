@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn.functional as F
+import pdb 
 
 from mmdet.core import bbox_overlaps
 from ..builder import HEADS
@@ -49,6 +50,7 @@ class FreeAnchorRetinaHead(RetinaHead):
         self.pre_anchor_topk = pre_anchor_topk
         self.bbox_thr = bbox_thr
         self.gamma = gamma
+        pdb.set_trace()
         self.alpha = alpha
 
     def loss(self,

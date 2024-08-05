@@ -3,6 +3,7 @@ import warnings
 
 import torch
 import torch.nn as nn
+import pdb
 from mmcv.runner import force_fp32
 
 from mmdet.core import (anchor_inside_flags, build_assigner, build_bbox_coder,
@@ -251,7 +252,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
                                               gt_bboxes)
 
         num_valid_anchors = anchors.shape[0]
-        bbox_targets = torch.zeros_like(anchors)
+        bbox_targets = torch.zeros_like(anchors, dtype=torch.float)  # Ensure bbox_targets is of type Float
         bbox_weights = torch.zeros_like(anchors)
         labels = anchors.new_full((num_valid_anchors, ),
                                   self.num_classes,
@@ -266,6 +267,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
                     sampling_result.pos_bboxes, sampling_result.pos_gt_bboxes)
             else:
                 pos_bbox_targets = sampling_result.pos_gt_bboxes
+            pos_bbox_targets = pos_bbox_targets.float()  # Ensure pos_bbox_targets is of type Float
             bbox_targets[pos_inds, :] = pos_bbox_targets
             bbox_weights[pos_inds, :] = 1.0
             if gt_labels is None:
@@ -483,6 +485,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, img_metas, device=device)
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
+        #pdb.set_trace()
         cls_reg_targets = self.get_targets(
             anchor_list,
             valid_flag_list,

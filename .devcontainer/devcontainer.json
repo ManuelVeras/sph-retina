@@ -3,7 +3,7 @@
     "name": "mmdet2",
     "dockerComposeFile": "docker-compose.yml",
     "service": "mmdet2",
-    "workspaceFolder": "/home/mstveras/mmdetection",
+    "workspaceFolder": "/home/mstveras/mmdetection_2",
     
     "hostRequirements": {
         "gpu":true

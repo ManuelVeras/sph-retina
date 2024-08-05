@@ -1,7 +1,8 @@
 import torch
-from mmcv.ops import bbox_overlaps, box_iou_rotated, diff_iou_rotated_2d
+from mmcv.ops import bbox_overlaps, box_iou_rotated
+from .kent_iou_calculator import kent_iou_calculator
 
-from sphdet.bbox.box_formator import (Sph2PlanarBoxTransform,)
+from sphdet.bbox.box_formator import (Sph2PlanarBoxTransform, Planar2KentTransform)
 
 from .approximate_ious import fov_iou_aligned, sph_iou_aligned
 from .sph2pob_efficient import sph2pob_efficient
@@ -195,6 +196,26 @@ def naive_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, box_formator='sph2
     bboxes1 = box_formator(bboxes1)
     bboxes2 = box_formator(bboxes2)
     overlaps = iou_calculator(bboxes1, bboxes2, mode, is_aligned)
+    return overlaps
+
+
+def kent_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, box_formator='sph2pix'):
+    assert mode in ['iou']
+
+    rows = bboxes1.size(0)
+    cols = bboxes2.size(0)
+
+    if rows * cols == 0:
+        return bboxes1.new(rows, 1) if is_aligned else bboxes1.new(rows, cols)
+
+    box_version = bboxes1.size(1)
+    box_formator = Planar2KentTransform(box_formator, box_version)
+    iou_calculator = kent_iou_calculator
+
+    # The absolute numerical value of img_size does not affect subsequent calculations
+    bboxes1 = box_formator(bboxes1)
+    bboxes2 = box_formator(bboxes2)
+    overlaps = iou_calculator(bboxes1, bboxes2)
     return overlaps
 
 
