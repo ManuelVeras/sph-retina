@@ -28,12 +28,10 @@ import time
 from numpy.random import seed, uniform, randint	
 import warnings
 import pdb
-#import sys
-#import json 
+import logging
 
-'''import pdb
-from skimage.io import imread
-import warnings'''
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 #helper function
 def MMul(A, B):
@@ -476,6 +474,10 @@ def kent_me(xs):
   Ht = KentDistribution.create_matrix_Ht(theta, phi)
   B = MMul(Ht, MMul(S, H))
   
+  # Check for NaNs or Infs in B
+  if not isfinite(B).all():
+    raise ValueError("Matrix B contains NaNs or Infs")
+
   eigvals, eigvects = eig(B[1:,1:])
   eigvals = real(eigvals)
   if eigvals[0] < eigvals[1]:
@@ -498,6 +500,44 @@ def kent_me(xs):
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
   
   return kent4(G, kappa, beta)  
+
+def tlts_kent_me(xs, xbar):
+	"""Generates and returns a KentDistribution based on a moment estimation."""
+	lenxs = len(xs)
+	#pause()
+	xbar = average(xs, 0) # average direction of samples from origin
+	S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
+	gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
+	theta, phi = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
+
+	H = KentDistribution.create_matrix_H(theta, phi)
+	Ht = KentDistribution.create_matrix_Ht(theta, phi)
+	B = MMul(Ht, MMul(S, H))
+	eigvals, eigvects = eig(B[1:,1:])
+	eigvals = real(eigvals)
+	if eigvals[0] < eigvals[1]:
+		eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
+		eigvects = eigvects[:,::-1]
+	K = diag([1.0, 1.0, 1.0])
+	K[1:,1:] = eigvects
+  
+	G = MMul(H, K)
+	Gt = transpose(G)
+	T = MMul(Gt, MMul(S, G))
+  
+	r1 = norm(xbar)
+	t22, t33 = T[1, 1], T[2, 2]
+	r2 = t22 - t33
+  
+	# kappa and beta can be estimated but may not lie outside their permitted ranges
+	min_kappa = 1E-6
+	kappa = max( min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
+	beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
+
+	print(f'kappa, beta  = {kappa}, {beta}')
+  
+	return kent4(G, kappa, beta)
+
 
 def __kent_mle_output1(k_me, callback):
   print()
@@ -768,7 +808,7 @@ def deg2kent(annotations, h=960, w=1920):
 def deg2kent_single(annotations, h=960, w=1920):
     results = []
     Xs = sampleFromAnnotation_deg(annotations, (h, w))
-    k = kent_me(Xs)
+    k = tlts_kent_me(Xs)
     results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
     return torch.tensor(results)
 
