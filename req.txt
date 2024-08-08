@@ -1,3 +1,0 @@
-pip install -v -e .
-pip install yapf==0.40.1
-pip install future tensorboard

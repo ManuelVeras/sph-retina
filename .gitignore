@@ -17,6 +17,7 @@ datasets/
 eggs/
 .eggs/
 lib/
+experiments
 lib64/
 parts/
 sdist/

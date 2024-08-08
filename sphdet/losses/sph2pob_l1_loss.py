@@ -4,7 +4,7 @@ from mmdet.models.losses import L1Loss
 
 from .sph2pob_transform import Sph2PobTransfrom
 import torch.nn.functional as F
-
+import pdb
 
 @LOSSES.register_module()
 @Sph2PobTransfrom()
@@ -22,6 +22,7 @@ class Sph2PobL1Loss(L1Loss):
         self.encode = encode 
         self.swap = swap
         self.angle_modifier = angle_modifier
+        pdb.set_trace()
         #self.bbox_coder = DeltaXYWHAOBBoxCoder()
 
     def forward(self, pred, target, weight=None, *args, **kwargs):

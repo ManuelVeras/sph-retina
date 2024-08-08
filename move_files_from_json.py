@@ -3,11 +3,11 @@ import shutil
 import os
 
 # Path to the JSON file
-json_file_path = '/home/mstveras/mmdetection-2.x/datasets/360INDOOR/annotations/instances_val2017.json'
+json_file_path = '/home/mstveras/mmdetection_2/datasets/360INDOOR/annotations/instances_val2017.json'
 
 # Directories
-source_directory = '/home/mstveras/mmdetection-2.x/data/360INDOOR/images'
-destination_directory = '/home/mstveras/mmdetection-2.x/datasets/360INDOOR/images/val2017'
+source_directory = '/home/mstveras/mmdetection_2/datasetsa/360INDOOR/images'
+destination_directory = '/home/mstveras/mmdetection_2/datasets/360INDOOR/images/val2017'
 
 # Ensure the destination directory exists
 os.makedirs(destination_directory, exist_ok=True)

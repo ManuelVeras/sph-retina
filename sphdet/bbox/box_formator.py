@@ -22,16 +22,19 @@ from scipy.stats import norm as gauss
 from scipy.linalg import eig
 import sys
 import torch
-from line_profiler import LineProfiler
+#from kent_distribution import *
+#from line_profiler import LineProfiler
 import threading
 import time
 from numpy.random import seed, uniform, randint	
 import warnings
 import pdb
-import logging
+#import sys
+#import json 
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+'''import pdb
+from skimage.io import imread
+import warnings'''
 
 #helper function
 def MMul(A, B):
@@ -474,10 +477,6 @@ def kent_me(xs):
   Ht = KentDistribution.create_matrix_Ht(theta, phi)
   B = MMul(Ht, MMul(S, H))
   
-  # Check for NaNs or Infs in B
-  if not isfinite(B).all():
-    raise ValueError("Matrix B contains NaNs or Infs")
-
   eigvals, eigvects = eig(B[1:,1:])
   eigvals = real(eigvals)
   if eigvals[0] < eigvals[1]:
@@ -500,44 +499,6 @@ def kent_me(xs):
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
   
   return kent4(G, kappa, beta)  
-
-def tlts_kent_me(xs, xbar):
-	"""Generates and returns a KentDistribution based on a moment estimation."""
-	lenxs = len(xs)
-	#pause()
-	xbar = average(xs, 0) # average direction of samples from origin
-	S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
-	gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-	theta, phi = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-
-	H = KentDistribution.create_matrix_H(theta, phi)
-	Ht = KentDistribution.create_matrix_Ht(theta, phi)
-	B = MMul(Ht, MMul(S, H))
-	eigvals, eigvects = eig(B[1:,1:])
-	eigvals = real(eigvals)
-	if eigvals[0] < eigvals[1]:
-		eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-		eigvects = eigvects[:,::-1]
-	K = diag([1.0, 1.0, 1.0])
-	K[1:,1:] = eigvects
-  
-	G = MMul(H, K)
-	Gt = transpose(G)
-	T = MMul(Gt, MMul(S, G))
-  
-	r1 = norm(xbar)
-	t22, t33 = T[1, 1], T[2, 2]
-	r2 = t22 - t33
-  
-	# kappa and beta can be estimated but may not lie outside their permitted ranges
-	min_kappa = 1E-6
-	kappa = max( min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
-	beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-
-	print(f'kappa, beta  = {kappa}, {beta}')
-  
-	return kent4(G, kappa, beta)
-
 
 def __kent_mle_output1(k_me, callback):
   print()
@@ -700,10 +661,53 @@ def selectAnnotation(annotations, class_name=None):
 			else: idx+=1 
 
 
+'''def sampleFromAnnotation_deg(annotation, shape):
+  h, w = shape
+  phi_deg, theta_deg, fov_h, fov_v = annotation
+	#x, y, _, _, fov_h, fov_v, label = annotation
+
+	# Transform absolute coordinates (data_x, data_y) of an equirectangular image
+	# to angular coordinates (phi00, theta00).
+	# phi00: Longitude, ranges from -π to π.
+	# theta00: Latitude, ranges from -π/2 to π/2.	
+	
+	#phi00 = (x - w / 2.) * ((2. * pi) / w)
+	#theta00 = (y - h / 2.) * (pi / h)
+	
+	#phi_deg = rad2deg(phi00)+180
+	#theta_deg = rad2deg(theta00)+90
+
+  phi00 = deg2rad(phi_deg-180)
+  theta00 = deg2rad(theta_deg-90)
+
+  a_lat = deg2rad(fov_v)
+  a_long = deg2rad(fov_h)
+	
+  r = 11
+  d_lat = r / (2 * tan(a_lat / 2))
+  d_long = r / (2 * tan(a_long / 2))
+	
+  p = []
+  for i in range(-(r - 1) // 2, (r + 1) // 2):
+    for j in range(-(r - 1) // 2, (r + 1) // 2):
+      p += [asarray([i * d_lat / d_long, j, d_lat])]
+
+  R = dot(Rotation.Ry(phi00), Rotation.Rx(theta00))
+  p = asarray([dot(R, (p[ij] / norm(p[ij]))) for ij in range(r * r)])
+
+  phi = asarray([arctan2(p[ij][0], p[ij][2]) for ij in range(r * r)])
+  theta = asarray([arcsin(p[ij][1]) for ij in range(r * r)])
+  u = (phi / (2 * pi) + 1. / 2.) * w
+  v = h - (-theta / pi + 1. / 2.) * h
+  return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)'''
+
 def sampleFromAnnotation_deg(annotation, shape):
     h, w = shape
+    # Convert annotation to CPU and NumPy array
     #pdb.set_trace()
+    annotation = annotation.cpu().numpy()
     phi_deg, theta_deg, fov_h, fov_v = annotation
+    #pdb.set_trace()
 
     phi00 = deg2rad(phi_deg - 180)
     theta00 = deg2rad(theta_deg - 90)
@@ -729,10 +733,39 @@ def sampleFromAnnotation_deg(annotation, shape):
     v = h - (-theta / pi + 1. / 2.) * h
     return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)
 
+'''def sampleFromAnnotation_deg(annotation, shape):
+    h, w = shape
+    # Convert annotation to GPU tensor
+    annotation = annotation.to('cuda')
+    phi_deg, theta_deg, fov_h, fov_v = annotation
+
+    phi00 = torch.deg2rad(phi_deg - 180)
+    theta00 = torch.deg2rad(theta_deg - 90)
+
+    a_lat = torch.deg2rad(fov_v)
+    a_long = torch.deg2rad(fov_h)
+
+    r = 11
+    d_lat = r / (2 * torch.tan(a_lat / 2))
+    d_long = r / (2 * torch.tan(a_long / 2))
+
+    i, j = torch.meshgrid(torch.arange(-(r - 1) // 2, (r + 1) // 2, device='cuda'), 
+                          torch.arange(-(r - 1) // 2, (r + 1) // 2, device='cuda'))
+    p = torch.stack([i * d_lat / d_long, j, d_lat * torch.ones_like(i)], dim=-1).reshape(-1, 3)
+
+    R = torch.matmul(Rotation.Ry(phi00), Rotation.Rx(theta00))
+    p = torch.matmul(p, R.T)
+
+    phi = torch.atan2(p[:, 0], p[:, 2])
+    theta = torch.asin(p[:, 1])
+    u = (phi / (2 * torch.pi) + 0.5) * w
+    v = h - (-theta / torch.pi + 0.5) * h
+
+    return projectEquirectangular2Sphere(torch.stack([u, v], dim=-1).cpu().numpy(), w, h)'''
+
 def sampleFromAnnotation(annotation, shape):
     h, w = shape
     # Convert annotation to CPU and NumPy array
-    #pdb.set_trace()
     annotation = annotation.cpu().numpy()
     x, y, _, _, fov_h, fov_v, label = annotation
 
@@ -804,13 +837,6 @@ def deg2kent(annotations, h=960, w=1920):
         k = kent_me(Xs)
         results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
     return torch.tensor(results, device=annotations.device)
-  
-def deg2kent_single(annotations, h=960, w=1920):
-    results = []
-    Xs = sampleFromAnnotation_deg(annotations, (h, w))
-    k = tlts_kent_me(Xs)
-    results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
-    return torch.tensor(results)
 
 '''
 def deg2kent(annotations, h=960, w=1920):
@@ -829,8 +855,8 @@ def deg2kent(annotations, h=960, w=1920):
     
     result = profiled_deg2kent(annotations, h, w)
     profiler.print_stats()
-    return result
-'''
+    return result'''
+
 
 import math
 import torch
@@ -921,6 +947,7 @@ def _pix2sph_box_transform(boxes, img_size):
 #    img_h, img_w = img_size
 #    return deg2kent(boxes, img_h, img_w)
 
+'''
 def _sph_box2kent_transform(boxes, img_size):
     profiler = LineProfiler()
     profiler.add_function(deg2kent)
@@ -935,6 +962,11 @@ def _sph_box2kent_transform(boxes, img_size):
     result = profiled_sph_box2kent_transform(boxes, img_size)
     profiler.print_stats()
     return result
+''' 
+
+def _sph_box2kent_transform(boxes, img_size):
+    img_h, img_w = img_size
+    return deg2kent(boxes, img_h, img_w)
 
 def _sph2tan_box_transform(boxes, img_size):
     img_h, img_w = img_size
@@ -1054,7 +1086,7 @@ class Planar2KentTransform:
         box_version = self.box_version if box_version is None else box_version
         sph = self.transform_1(xyxy2xywh(boxes), img_size)
         kent = self.transform_2(sph, img_size)
-        print('sasjijisajisjiajias')
+        #print('sasjijisajisjiajias')
         return kent
 
 class SphBox2KentTransform:
