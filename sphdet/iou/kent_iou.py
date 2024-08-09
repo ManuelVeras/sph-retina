@@ -156,7 +156,7 @@ def kent_loss(kent_a: torch.Tensor, kent_b: torch.Tensor, const: float = 2.0) ->
     kld = get_kld(kent_a, kent_b)
     return 1 - 1 / (const + torch.sqrt(kld))
 
-def kent_iou_calculator(kent_a: torch.Tensor, kent_b: torch.Tensor) -> torch.Tensor:
+def kent_iou(kent_a: torch.Tensor, kent_b: torch.Tensor) -> torch.Tensor:
     kld = get_kld(kent_a, kent_b)
     return 1 / (1 + torch.sqrt(kld))
 

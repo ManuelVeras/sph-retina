@@ -43,11 +43,10 @@ class SphOverlaps2D(object):
 
         bboxes1 = bboxes1[..., :self.box_version]
         bboxes2 = bboxes2[..., :self.box_version]
-        #if self.box_version == 5:
-        #    assert self.backend in ['unbiased_iou', 'sph2pob_legacy_iou', 'sph2pob_efficient_iou']
+        if self.box_version == 5:
+            assert self.backend in ['unbiased_iou', 'sph2pob_legacy_iou', 'sph2pob_efficient_iou', 'kent_iou']
         with torch.no_grad():
             overlaps = sph_overlaps(bboxes1, bboxes2, mode, is_aligned, self.backend)
-            #overlaps = 
         return overlaps
 
     def __repr__(self):
@@ -108,6 +107,4 @@ def sph_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, backend='unbias
         overlaps = iou_calculator(bboxes1.cpu(), bboxes2.cpu(), mode, is_aligned).to(device)
     else:
         overlaps = iou_calculator(bboxes1, bboxes2, mode, is_aligned)
-        
-        #pdb.set_trace()
     return overlaps

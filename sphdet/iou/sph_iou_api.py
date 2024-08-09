@@ -1,6 +1,6 @@
 import torch
 from mmcv.ops import bbox_overlaps, box_iou_rotated
-from .kent_iou_calculator import kent_iou_calculator
+from .kent_iou import kent_iou
 
 from sphdet.bbox.box_formator import (Sph2PlanarBoxTransform, Planar2KentTransform)
 
@@ -210,7 +210,7 @@ def kent_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, box_formator='sph2p
 
     box_version = bboxes1.size(1)
     box_formator = Planar2KentTransform(box_formator, box_version)
-    iou_calculator = kent_iou_calculator
+    iou_calculator = kent_iou
 
     # The absolute numerical value of img_size does not affect subsequent calculations
     bboxes1 = box_formator(bboxes1)

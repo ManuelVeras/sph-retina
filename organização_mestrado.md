@@ -2,6 +2,9 @@
 
 ## Inputs
 
+- acredito que sph_iou_calculator foi modificado direto para as kents.
+
+
 ### Variáveis e Configurações
 - **reg_decoded_bbox (bool)**: 
   - Se `True`, a regressão loss é aplicada diretamente em decoded bounding boxes, convertendo as caixas previstas e os alvos de regressão para o formato de coordenadas absolutas. 
