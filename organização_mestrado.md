@@ -2,6 +2,10 @@
 
 ## Inputs
 
+###todo
+
+corrigir esse warning: "/home/mstveras/mmdetection_2/sphdet/bbox/kent_formator.py:486: ComplexWarning: Casting complex values to real discards the imaginary part K[1:,1:] = eigvects"
+
 ### Variáveis e Configurações
 - **reg_decoded_bbox (bool)**: 
   - Se `True`, a regressão loss é aplicada diretamente em decoded bounding boxes, convertendo as caixas previstas e os alvos de regressão para o formato de coordenadas absolutas. 

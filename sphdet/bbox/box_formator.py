@@ -4,26 +4,12 @@ import sys
 import os
 from .kent_formator import deg2kent
 
-from numpy import *
-from scipy.optimize import fmin_bfgs
 from scipy.special import gamma as gamma_fun
 from scipy.special import iv as modified_bessel_2ndkind
 from scipy.special import ivp as modified_bessel_2ndkind_derivative
-from scipy.stats import uniform
-# to avoid confusion with the norm of a vector we give the normal distribution a less confusing name here
 from scipy.stats import norm as gauss 
-from scipy.linalg import eig
-import sys
-import torch
-#from kent_distribution import *
-#from line_profiler import LineProfiler
-import threading
-import time
 from numpy.random import seed, uniform, randint	
 import warnings
-import pdb
-#import sys
-#import json 
 
 # Add the root directory to the system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -104,27 +90,6 @@ def _pix2sph_box_transform(boxes, img_size):
     alpha = (w / img_w) * 360
     beta = (h / img_h) * 180
     return torch.cat([theta, phi, alpha, beta], dim=1) # Nx4
-
-#def _sph_box2kent_transform(boxes, img_size):
-#    img_h, img_w = img_size
-#    return deg2kent(boxes, img_h, img_w)
-
-'''
-def _sph_box2kent_transform(boxes, img_size):
-    profiler = LineProfiler()
-    profiler.add_function(deg2kent)
-    profiler.add_function(sampleFromAnnotation_deg)
-    profiler.add_function(kent_me)
-    
-    @profiler
-    def profiled_sph_box2kent_transform(boxes, img_size):
-        img_h, img_w = img_size
-        return deg2kent(boxes, img_h, img_w)
-    
-    result = profiled_sph_box2kent_transform(boxes, img_size)
-    profiler.print_stats()
-    return result
-''' 
 
 def _sph_box2kent_transform(boxes, img_size):
     img_h, img_w = img_size
