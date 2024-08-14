@@ -1,6 +1,18 @@
 import math
 import torch
+import sys
+import os
+from .kent_formator import deg2kent
 
+from scipy.special import gamma as gamma_fun
+from scipy.special import iv as modified_bessel_2ndkind
+from scipy.special import ivp as modified_bessel_2ndkind_derivative
+from scipy.stats import norm as gauss 
+from numpy.random import seed, uniform, randint	
+import warnings
+
+# Add the root directory to the system path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def xyxy2xywh(boxes):
     x1, y1, x2, y2 = torch.chunk(boxes, 4, dim=1) # Nx1
@@ -78,6 +90,10 @@ def _pix2sph_box_transform(boxes, img_size):
     alpha = (w / img_w) * 360
     beta = (h / img_h) * 180
     return torch.cat([theta, phi, alpha, beta], dim=1) # Nx4
+
+def _sph_box2kent_transform(boxes, img_size):
+    img_h, img_w = img_size
+    return deg2kent(boxes, img_h, img_w)
 
 def _sph2tan_box_transform(boxes, img_size):
     img_h, img_w = img_size
@@ -183,6 +199,28 @@ class Planar2SphBoxTransform:
             _boxes = self.transform(xyxy2xywh(boxes), img_size)
             return bfov2rbfov(_boxes) #xywha(rbfov)
 
+          
+class Planar2KentTransform:
+    def __init__(self, mode='sph2pix', box_version=4):
+        #assert mode in ['sph2pix', 'pix2sph', 'sph2tan', 'tan2sph']
+        assert box_version in [4, 5]
+
+        self.box_version = box_version
+        self.transform_1 = _pix2sph_box_transform
+        self.transform_2 = _sph_box2kent_transform
+    
+    def __call__(self, boxes, img_size=(512, 1024), box_version=None):
+        box_version = self.box_version if box_version is None else box_version
+        sph = self.transform_1(xyxy2xywh(boxes), img_size)
+        kent = self.transform_2(sph, img_size)
+        #print('sasjijisajisjiajias')
+        return kent
+
+class SphBox2KentTransform:
+    def __init__(self):
+        self.transform = _sph_box2kent_transform
+    def __call__(self, boxes, img_size=(512, 1024)):
+        return self.transform(boxes, img_size)
 
 def bbox2roi(bbox_list, box_version=4):
     """Convert a list of bboxes to roi format.
@@ -204,4 +242,3 @@ def bbox2roi(bbox_list, box_version=4):
         rois_list.append(rois)
     rois = torch.cat(rois_list, 0)
     return rois
-     
