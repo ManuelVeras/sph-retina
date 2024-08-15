@@ -6,6 +6,23 @@
 
 corrigir esse warning: "/home/mstveras/mmdetection_2/sphdet/bbox/kent_formator.py:486: ComplexWarning: Casting complex values to real discards the imaginary part K[1:,1:] = eigvects"
 
+
+entender como funciona bbox_targets (tem muitas linha srepeditas)
+
+bbox_targets -> existem linhas (bonding kents) com valores de 0 em todas dims, pq isso acontece?
+
+-> problemas na loss: entender limitacoes kappa e beta e se codigo comntempla isso e como resolver; debugar somente a loss nesse momento
+
+
+
+-> ok, descobri que a o codigo do iou/loss da kent estava usando as coisas em ordem kappa, beta, phi, psi, eta, mas o codigo original do kent usa phi, psi, eta, kappa, beta....
+
+-> pelo jeito o codigo do iou/loss esta recebendo em angulos, tambem e o certo seria radianos (será??)
+
+loss retornando nan debugar essa póraaa
+overlaps retornando nan na ultima dim
+
+
 ### Variáveis e Configurações
 - **reg_decoded_bbox (bool)**: 
   - Se `True`, a regressão loss é aplicada diretamente em decoded bounding boxes, convertendo as caixas previstas e os alvos de regressão para o formato de coordenadas absolutas. 

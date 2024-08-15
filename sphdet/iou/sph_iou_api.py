@@ -215,6 +215,7 @@ def kent_iou(bboxes1, bboxes2, mode='iou', is_aligned=False, box_formator='sph2p
     # The absolute numerical value of img_size does not affect subsequent calculations
     bboxes1 = box_formator(bboxes1)
     bboxes2 = box_formator(bboxes2)
+    #import pdb; pdb.set_trace()
     overlaps = iou_calculator(bboxes1, bboxes2)
     return overlaps
 

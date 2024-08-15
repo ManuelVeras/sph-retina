@@ -5,6 +5,7 @@ from mmdet.core.utils import filter_scores_and_topk
 
 from sphdet.bbox.nms import PlanarNMS, SphNMS
 import torch.nn as nn
+import pdb
 
 
 @HEADS.register_module()
@@ -248,19 +249,32 @@ class KentRetinaHead(RetinaHead):
                                       1).reshape(-1, self.cls_out_channels)
         loss_cls = self.loss_cls(
             cls_score, labels, label_weights, avg_factor=num_total_samples)
+        
+        # Check for NaN values in bbox_pred and bbox_targets
+        if torch.isnan(bbox_pred).any() or torch.isnan(bbox_targets).any():
+            print("NaN detected in bbox_pred or bbox_targets")
+            print("bbox_pred:", bbox_pred)
+            print("bbox_targets:", bbox_targets)
+
         # regression loss
         bbox_targets = bbox_targets.reshape(-1, self.box_version)
         bbox_weights = bbox_weights.reshape(-1, self.box_version)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(-1, self.box_version)
+        
         if self.reg_decoded_bbox:
             # When the regression loss (e.g. `IouLoss`, `GIouLoss`)
             # is applied directly on the decoded bounding boxes, it
             # decodes the already encoded coordinates to absolute format.
             anchors = anchors.reshape(-1, self.box_version)
             bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+           
+        
         loss_bbox = self.loss_bbox(
             bbox_pred,
             bbox_targets,
             bbox_weights,
             avg_factor=num_total_samples)
+        
+        print(loss_bbox)
+        
         return loss_cls, loss_bbox

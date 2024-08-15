@@ -47,6 +47,13 @@ pip install yapf==0.40.1
 pip install future tensorboard
 ```
 
+line profiler:
+
+apt-get update
+pip install line_profiler
+
+
+
 Quebrei um pouco a cabeça para incluir esses comandos no Dockerfile para que estivessem incluídos assim que instanciasse a imagem, mas nada deu certo. Como a gambiarra deu conta do recado, acabei deixando assim mesmo.
 
 # 2 - Comandos do MMdet

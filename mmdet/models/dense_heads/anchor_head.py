@@ -485,6 +485,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         anchor_list, valid_flag_list = self.get_anchors(
             featmap_sizes, img_metas, device=device)
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
+       
         #pdb.set_trace()
         cls_reg_targets = self.get_targets(
             anchor_list,
@@ -494,8 +495,10 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
             gt_bboxes_ignore_list=gt_bboxes_ignore,
             gt_labels_list=gt_labels,
             label_channels=label_channels)
+       
         if cls_reg_targets is None:
             return None
+       
         (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
          num_total_pos, num_total_neg) = cls_reg_targets
         num_total_samples = (
@@ -510,6 +513,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         all_anchor_list = images_to_levels(concat_anchor_list,
                                            num_level_anchors)
 
+        #import pdb; pdb.set_trace()
         losses_cls, losses_bbox = multi_apply(
             self.loss_single,
             cls_scores,
@@ -520,6 +524,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
             bbox_targets_list,
             bbox_weights_list,
             num_total_samples=num_total_samples)
+        
         return dict(loss_cls=losses_cls, loss_bbox=losses_bbox)
 
     def aug_test(self, feats, img_metas, rescale=False):

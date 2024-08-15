@@ -660,47 +660,6 @@ def selectAnnotation(annotations, class_name=None):
 			if idx == rnd: return ann
 			else: idx+=1 
 
-
-'''def sampleFromAnnotation_deg(annotation, shape):
-  h, w = shape
-  phi_deg, theta_deg, fov_h, fov_v = annotation
-	#x, y, _, _, fov_h, fov_v, label = annotation
-
-	# Transform absolute coordinates (data_x, data_y) of an equirectangular image
-	# to angular coordinates (phi00, theta00).
-	# phi00: Longitude, ranges from -π to π.
-	# theta00: Latitude, ranges from -π/2 to π/2.	
-	
-	#phi00 = (x - w / 2.) * ((2. * pi) / w)
-	#theta00 = (y - h / 2.) * (pi / h)
-	
-	#phi_deg = rad2deg(phi00)+180
-	#theta_deg = rad2deg(theta00)+90
-
-  phi00 = deg2rad(phi_deg-180)
-  theta00 = deg2rad(theta_deg-90)
-
-  a_lat = deg2rad(fov_v)
-  a_long = deg2rad(fov_h)
-	
-  r = 11
-  d_lat = r / (2 * tan(a_lat / 2))
-  d_long = r / (2 * tan(a_long / 2))
-	
-  p = []
-  for i in range(-(r - 1) // 2, (r + 1) // 2):
-    for j in range(-(r - 1) // 2, (r + 1) // 2):
-      p += [asarray([i * d_lat / d_long, j, d_lat])]
-
-  R = dot(Rotation.Ry(phi00), Rotation.Rx(theta00))
-  p = asarray([dot(R, (p[ij] / norm(p[ij]))) for ij in range(r * r)])
-
-  phi = asarray([arctan2(p[ij][0], p[ij][2]) for ij in range(r * r)])
-  theta = asarray([arcsin(p[ij][1]) for ij in range(r * r)])
-  u = (phi / (2 * pi) + 1. / 2.) * w
-  v = h - (-theta / pi + 1. / 2.) * h
-  return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)'''
-
 def sampleFromAnnotation_deg(annotation, shape):
     h, w = shape
     # Convert annotation to CPU and NumPy array
@@ -714,10 +673,11 @@ def sampleFromAnnotation_deg(annotation, shape):
 
     a_lat = deg2rad(fov_v)
     a_long = deg2rad(fov_h)
+    r =11
 
-    r = 11
+    epsilon = 1e-10  # Small value to prevent division by zero
     d_lat = r / (2 * tan(a_lat / 2))
-    d_long = r / (2 * tan(a_long / 2))
+    d_long = r / (2 * tan(a_long / 2 + epsilon))  # Add epsilon to prevent division by zero
 
     p = []
     for i in range(-(r - 1) // 2, (r + 1) // 2):
@@ -732,36 +692,6 @@ def sampleFromAnnotation_deg(annotation, shape):
     u = (phi / (2 * pi) + 1. / 2.) * w
     v = h - (-theta / pi + 1. / 2.) * h
     return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)
-
-'''def sampleFromAnnotation_deg(annotation, shape):
-    h, w = shape
-    # Convert annotation to GPU tensor
-    annotation = annotation.to('cuda')
-    phi_deg, theta_deg, fov_h, fov_v = annotation
-
-    phi00 = torch.deg2rad(phi_deg - 180)
-    theta00 = torch.deg2rad(theta_deg - 90)
-
-    a_lat = torch.deg2rad(fov_v)
-    a_long = torch.deg2rad(fov_h)
-
-    r = 11
-    d_lat = r / (2 * torch.tan(a_lat / 2))
-    d_long = r / (2 * torch.tan(a_long / 2))
-
-    i, j = torch.meshgrid(torch.arange(-(r - 1) // 2, (r + 1) // 2, device='cuda'), 
-                          torch.arange(-(r - 1) // 2, (r + 1) // 2, device='cuda'))
-    p = torch.stack([i * d_lat / d_long, j, d_lat * torch.ones_like(i)], dim=-1).reshape(-1, 3)
-
-    R = torch.matmul(Rotation.Ry(phi00), Rotation.Rx(theta00))
-    p = torch.matmul(p, R.T)
-
-    phi = torch.atan2(p[:, 0], p[:, 2])
-    theta = torch.asin(p[:, 1])
-    u = (phi / (2 * torch.pi) + 0.5) * w
-    v = h - (-theta / torch.pi + 0.5) * h
-
-    return projectEquirectangular2Sphere(torch.stack([u, v], dim=-1).cpu().numpy(), w, h)'''
 
 def sampleFromAnnotation(annotation, shape):
     h, w = shape
@@ -823,7 +753,7 @@ def tlts_kent_me(xs, xbar):
   
 	# kappa and beta can be estimated but may not lie outside their permitted ranges
 	min_kappa = 1E-6
-	kappa = max( min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
+	kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
 	beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
 
 	print(f'kappa, beta  = {kappa}, {beta}')

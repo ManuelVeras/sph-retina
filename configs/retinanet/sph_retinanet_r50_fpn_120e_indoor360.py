@@ -24,7 +24,7 @@ data = dict(
 
 
 model = dict(
-    bbox_head=dict(
+    bbox_head=dict(reg_decoded_bbox=True,
         anchor_generator=dict(
             box_formator='sph2pix'),
         loss_cls=dict(
@@ -33,7 +33,7 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
+        loss_bbox=dict(type='KentLoss', loss_weight=1.0)),
     train_cfg=dict(
         assigner=dict(
             iou_calculator=dict(

@@ -213,7 +213,6 @@ class Planar2KentTransform:
         box_version = self.box_version if box_version is None else box_version
         sph = self.transform_1(xyxy2xywh(boxes), img_size)
         kent = self.transform_2(sph, img_size)
-        #print('sasjijisajisjiajias')
         return kent
 
 class SphBox2KentTransform:

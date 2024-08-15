@@ -18,7 +18,7 @@ model = dict(
         start_level=1,
         add_extra_convs='on_input',
         num_outs=5),
-    bbox_head=dict(
+    bbox_head=dict(reg_decoded_bbox=True,
         type='KentRetinaHead',
         box_version=5,
         num_classes=37,
@@ -43,7 +43,7 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
+        loss_bbox=dict(type='KentLoss')),
     train_cfg=dict(
         assigner=dict(
             type='MaxIoUAssigner',
