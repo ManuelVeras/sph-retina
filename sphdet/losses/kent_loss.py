@@ -3,11 +3,16 @@ import pdb
 import torch.nn as nn
 from mmdet.models.builder import LOSSES
 
-def angles_to_Q(alpha: torch.Tensor, beta: torch.Tensor, eta: torch.Tensor) -> torch.Tensor:
+def radians_to_Q(psi: torch.Tensor, alpha: torch.Tensor, eta: torch.Tensor) -> torch.Tensor:
     N = alpha.size(0)
+    psi = psi.view(N, 1)
     alpha = alpha.view(N, 1)
-    beta = beta.view(N, 1)
     eta = eta.view(N, 1)
+    
+    # Convert input angles from degrees to radians
+    psi = torch.deg2rad(psi)
+    alpha = torch.deg2rad(alpha)
+    eta = torch.deg2rad(eta)
     
     gamma_1 = torch.cat([
         torch.cos(alpha),
@@ -16,15 +21,15 @@ def angles_to_Q(alpha: torch.Tensor, beta: torch.Tensor, eta: torch.Tensor) -> t
     ], dim=1).unsqueeze(2)
 
     gamma_2 = torch.cat([
-        -torch.cos(beta) * torch.sin(alpha),
-        torch.cos(beta) * torch.cos(alpha) * torch.cos(eta) - torch.sin(beta) * torch.sin(eta),
-        torch.cos(beta) * torch.cos(alpha) * torch.sin(eta) + torch.sin(beta) * torch.cos(eta)
+        -torch.cos(psi) * torch.sin(alpha),
+        torch.cos(psi) * torch.cos(alpha) * torch.cos(eta) - torch.sin(psi) * torch.sin(eta),
+        torch.cos(psi) * torch.cos(alpha) * torch.sin(eta) + torch.sin(psi) * torch.cos(eta)
     ], dim=1).unsqueeze(2)
 
     gamma_3 = torch.cat([
-        torch.sin(beta) * torch.sin(alpha),
-        -torch.sin(beta) * torch.cos(alpha) * torch.cos(eta) - torch.cos(beta) * torch.sin(eta),
-        -torch.sin(beta) * torch.cos(alpha) * torch.sin(eta) + torch.cos(beta) * torch.cos(eta)
+        torch.sin(psi) * torch.sin(alpha),
+        -torch.sin(psi) * torch.cos(alpha) * torch.cos(eta) - torch.cos(psi) * torch.sin(eta),
+        -torch.sin(psi) * torch.cos(alpha) * torch.sin(eta) + torch.cos(psi) * torch.cos(eta)
     ], dim=1).unsqueeze(2)
 
     gamma = torch.cat((gamma_1, gamma_2, gamma_3), dim=2)
@@ -32,53 +37,50 @@ def angles_to_Q(alpha: torch.Tensor, beta: torch.Tensor, eta: torch.Tensor) -> t
 
 def c_approximation(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     epsilon = 1e-8  # Small value to avoid division by zero
-    
-    # Debugging: Print the input values
-    print("kappa:", kappa)
-    print("beta:", beta)
-    
     exp_kappa = torch.exp(kappa)
-    print("exp(kappa):", exp_kappa)
     
     term1 = kappa - 2 * beta
     term2 = kappa + 2 * beta
-    print("term1 (kappa - 2 * beta):", term1)
-    print("term2 (kappa + 2 * beta):", term2)
     
-    denominator = (term1 * term2 + epsilon)**(-0.5)
-    print("denominator:", denominator)
+    denominator = (term1 * term2 + epsilon)**(-0.5)  # Add epsilon to avoid division by zero
     
     result = 2 * torch.pi * exp_kappa * denominator
-    print("result:", result)
-    
     return result
 
 def del_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
+    epsilon = 1e-8  # Small value to avoid division by zero
+
     numerator = -2 * torch.pi * (4 * beta**2 + kappa - kappa**2) * torch.exp(kappa)
-    denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2)
+    denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2) + epsilon  # Add epsilon to avoid division by zero
     return numerator / denominator
 
 def del_2_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
+    epsilon = 1e-8  # Small value to avoid division by zero
+
     numerator = 2 * torch.pi * (kappa**4 - 2 * kappa**3 + (2 - 8 * beta**2) * kappa**2 + 8 * beta**2 * kappa + 16 * beta**4 + 4 * beta**2) * torch.exp(kappa)
-    denominator = (kappa - 2 * beta)**(5/2) * (kappa + 2 * beta)**(5/2)
+    denominator = (kappa - 2 * beta)**(5/2) * (kappa + 2 * beta)**(5/2) + epsilon  # Add epsilon to avoid division by zero
     return numerator / denominator
 
 def del_beta(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
+    epsilon = 1e-8  # Small value to avoid division by zero
+
     numerator = 8 * torch.pi * torch.exp(kappa) * beta
-    denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2)
+    denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2) + epsilon  # Add epsilon to avoid division by zero
     return numerator / denominator
 
 def expected_x(gamma_a1: torch.Tensor, c: torch.Tensor, c_k: torch.Tensor) -> torch.Tensor:
-    const = (c_k / c).view(-1, 1)
+    epsilon = 1e-8  # Small value to avoid division by zero
+    const = (c_k / (c+epsilon)).view(-1, 1)
     return const * gamma_a1
 
 def expected_xxT(kappa: torch.Tensor, beta: torch.Tensor, Q_matrix: torch.Tensor, c: torch.Tensor, c_k: torch.Tensor) -> torch.Tensor:
     c_kk = del_2_kappa(kappa, beta)
     c_beta = del_beta(kappa, beta)
+    epsilon = 1e-8  # Small value to avoid division by zero
 
     lambda_1 = c_k / c
-    lambda_2 = (c - c_kk + c_beta) / (2 * c)
-    lambda_3 = (c - c_kk - c_beta) / (2 * c)
+    lambda_2 = (c - c_kk + c_beta) / (2 * c + epsilon)  # Add epsilon to avoid division by zero
+    lambda_3 = (c - c_kk - c_beta) / (2 * c + epsilon)  # Add epsilon to avoid division by zero
 
     lambdas = torch.stack([lambda_1, lambda_2, lambda_3], dim=-1)  # Shape: [N, 3]
     lambda_matrix = torch.diag_embed(lambdas)  # Shape: [N, 3, 3]
@@ -95,14 +97,10 @@ def beta_gamma_exxt_gamma(beta: torch.Tensor, gamma: torch.Tensor, ExxT: torch.T
     result = torch.bmm(intermediate_result, gamma_unsqueezed_2).squeeze()  # Shape: (N,)
     return beta * result  # Shape: (N,)
 
-def calculate_log_term(c_a, c_b):
+def calculate_log_term(c_b, c_a):
     """
     Calculate the log term of the KLD matrix.
     """
-    
-    print(c_a.view(-1, 1))
-    print(c_b.view(1, -1))
-    pdb.set_trace()
     return torch.log(c_b.view(-1, 1) / c_a.view(1, -1)).T
 
 def calculate_kappa_term(kappa_a, gamma_a1, kappa_b, gamma_b1, Ex_a):
@@ -142,13 +140,15 @@ def calculate_kld(log_term, ex_a_term, beta_a_term_1_expanded, beta_b_term_1, be
     """
     Calculate the final KLD matrix.
     """
+
     return log_term + ex_a_term + beta_a_term_1_expanded - beta_b_term_1 - beta_a_term_2_expanded + beta_b_term_2
 
 def kld_matrix(kappa_a: torch.Tensor, beta_a: torch.Tensor, gamma_a1: torch.Tensor, gamma_a2: torch.Tensor, gamma_a3: torch.Tensor,
                kappa_b: torch.Tensor, beta_b: torch.Tensor, gamma_b1: torch.Tensor, gamma_b2: torch.Tensor, gamma_b3: torch.Tensor,
                Ex_a: torch.Tensor, ExxT_a: torch.Tensor, c_a: torch.Tensor, c_b: torch.Tensor, c_ka: torch.Tensor) -> torch.Tensor:
     
-    log_term = calculate_log_term(c_a, c_b)
+
+    log_term = calculate_log_term(c_b, c_a)
     ex_a_term = calculate_kappa_term(kappa_a, gamma_a1, kappa_b, gamma_b1, Ex_a)
     beta_a_term_1_expanded, beta_b_term_1 = calculate_beta_term(beta_a, gamma_a2, beta_b, gamma_b2, ExxT_a)
     beta_a_term_2_expanded, beta_b_term_2 = calculate_beta_term(beta_a, gamma_a3, beta_b, gamma_b3, ExxT_a)
@@ -168,11 +168,11 @@ def kld_matrix(kappa_a: torch.Tensor, beta_a: torch.Tensor, gamma_a1: torch.Tens
     return kld
 
 def get_kld(kent_a: torch.Tensor, kent_b: torch.Tensor) -> torch.Tensor:
-    phi_a, psi_a, eta_a, kappa_a, beta_a = kent_a[:, 0], kent_a[:, 1], kent_a[:, 2], kent_a[:, 3], kent_a[:, 4]
-    Q_matrix_a = angles_to_Q(phi_a, psi_a, eta_a)
+    psi_a, alpha_a, eta_a, kappa_a, beta_a = kent_a[:, 0], kent_a[:, 1], kent_a[:, 2], kent_a[:, 3], kent_a[:, 4]
+    Q_matrix_a = radians_to_Q(psi_a, alpha_a, eta_a)
 
-    phi_b, psi_b, eta_b, kappa_b, beta_b = kent_b[:, 0], kent_b[:, 1], kent_b[:, 2], kent_b[:, 3], kent_b[:, 4]
-    Q_matrix_b = angles_to_Q(phi_b, psi_b, eta_b)
+    psi_b, alpha_b, eta_b, kappa_b, beta_b = kent_b[:, 0], kent_b[:, 1], kent_b[:, 2], kent_b[:, 3], kent_b[:, 4]
+    Q_matrix_b = radians_to_Q(psi_b, alpha_b, eta_b)
 
     gamma_a1, gamma_a2, gamma_a3 = Q_matrix_a[:, :, 0], Q_matrix_a[:, :, 1], Q_matrix_a[:, :, 2]
     gamma_b1, gamma_b2, gamma_b3 = Q_matrix_b[:, :, 0], Q_matrix_b[:, :, 1], Q_matrix_b[:, :, 2]
@@ -226,8 +226,71 @@ def kent_iou_calculator(kent_a: torch.Tensor, kent_b: torch.Tensor) -> torch.Ten
     kld = get_kld(kent_a, kent_b)
     return 1 / (1 + torch.sqrt(kld))
 
+def generate_random_kent_distributions(num_samples: int) -> torch.Tensor:
+    torch.manual_seed(42)  # For reproducibility
+
+    # Define the ranges
+    psi_min, psi_max = 0, torch.pi
+    alpha_min, alpha_max = 0, torch.pi
+    eta_min, eta_max = 0, 2 * torch.pi
+    kappa_min, kappa_max = 0.1, 10  # Using 10 as a practical upper bound for kappa
+
+    # Generate random values within the specified ranges
+    psi = psi_min + (psi_max - psi_min) * torch.rand(num_samples)
+    alpha = alpha_min + (alpha_max - alpha_min) * torch.rand(num_samples)
+    eta = eta_min + (eta_max - eta_min) * torch.rand(num_samples)
+    kappa = kappa_min + (kappa_max - kappa_min) * torch.rand(num_samples)
+    beta = torch.rand(num_samples) * (kappa / 2)
+
+    # Combine into a single tensor
+    kent_distributions = torch.stack([psi, alpha, eta, kappa, beta], dim=1)
+    return kent_distributions
+
+def pairwise_l1_distance(kent_a: torch.Tensor, kent_b: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the pairwise L1 distance matrix between two sets of Kent distributions.
+    Each Kent distribution is represented as a vector [psi, alpha, eta, kappa, beta].
+    """
+    # Expand dimensions to enable broadcasting
+    kent_a_expanded = kent_a.unsqueeze(1)  # Shape: [num_samples_a, 1, 5]
+    kent_b_expanded = kent_b.unsqueeze(0)  # Shape: [1, num_samples_b, 5]
+
+    # Compute the pairwise L1 distance
+    l1_dist_matrix = torch.sum(torch.abs(kent_a_expanded - kent_b_expanded), dim=2)
+    return l1_dist_matrix
+
 if __name__ == "__main__":
-    kent_a = torch.randint(0,10, (10, 5))
-    kent_b = torch.tensor([[1, 1, 1, 1, 0]])
-    kent_a[:, 4] = torch.rand(10) * (kent_a[:, 3] / 2)    
-    print(kent_loss(kent_a, kent_b))
+    '''
+    kent_a1 = [20, 0, 0, 20.2, 4.1] 
+    kent_a2 = [10, 0, 0, 9.1, 4.1]
+    kent_a3 = [0, 0, 0, 10.1, 4.1]
+    kent_a4 = [0, 0, 0, 10.1, 4.1]
+    
+    kent_a = torch.tensor([kent_a1, kent_a2, kent_a3, kent_a4], dtype=torch.float32, requires_grad=True)
+
+    kent_b1 = [0,0,0, 30.1, 4.1] 
+    kent_b2 = [20, 0, 0, 20.1, 4.1]
+    kent_b3 = [0, 0, 0, 30.1, 4.1]
+    kent_b4 = kent_a1
+    kent_b5 = kent_a2
+
+    kent_b = torch.tensor([kent_b1, kent_b2, kent_b3, kent_b4, kent_b5], dtype=torch.float32, requires_grad=True)
+
+    #nkent_loss_result = get_kld(kent_a, kent_b)'''
+
+    num_samples = 10
+    kent_a = generate_random_kent_distributions(3)
+    kent_b = generate_random_kent_distributions(3)
+    #print(kent_distributions)
+
+
+    #kent_a = torch.tensor([[7.0000, 9.0000, 7.0000, 6.3434, 3.0207]])
+    #kent_b = torch.tensor([[3.0000, 3.0000, 0.0000, 2.3307, 1.1098]])
+    #kent_b = torch.tensor([[6., 3., 6.0000, 9.0000, 7.0000]])
+    #kent_a = torch.tensor([[8.8785, 3.0125, 5.3710, 3.5621, 0.1642], [8.8785, 3.0125, 5.3710, 3.5621, 0.1642]])
+    #kent_b = torch.tensor([[7.2833e+00, 8.0882e+00, 2.2422e+00, 1.1072e-01, 5.2726e-02], [7.2833e+00, 8.0882e+00, 2.2422e+00, 1.1072e-01, 5.2726e-02]])
+    
+    #num cols = kent_b, num rows = kent_a
+    print(get_kld(kent_a, kent_b))
+    l1_dist_matrix = pairwise_l1_distance(kent_a, kent_b)
+    print(l1_dist_matrix)

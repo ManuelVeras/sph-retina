@@ -23,6 +23,9 @@ loss retornando nan debugar essa póraaa
 overlaps retornando nan na ultima dim
 
 
+- valores negativos em get_kld - > old kent_loss esta concordando com kent_loss. debugar essa merda, alguns valores negativos sao proximos a zero, mas outros nao. os scripts concordam aparentemente. o problema é que ta dando vlaor negativo. coloquei ali um exmplo, acho que tem que fazer na mao pra entender oonde que ta o erro,
+
+
 ### Variáveis e Configurações
 - **reg_decoded_bbox (bool)**: 
   - Se `True`, a regressão loss é aplicada diretamente em decoded bounding boxes, convertendo as caixas previstas e os alvos de regressão para o formato de coordenadas absolutas. 
