@@ -32,10 +32,6 @@ import pdb
 #import sys
 #import json 
 
-'''import pdb
-from skimage.io import imread
-import warnings'''
-
 #helper function
 def MMul(A, B):
   return inner(A, transpose(B))
@@ -45,6 +41,16 @@ def norm(x, axis=None):
   if isinstance(x, list) or isinstance(x, tuple):
     x = array(x)
   return sqrt(sum(x*x, axis=axis))  
+
+def __generate_arbitrary_orthogonal_unit_vector(x):
+  v1 = cross(x, array([1.0, 0.0, 0.0]))
+  v2 = cross(x, array([0.0, 1.0, 0.0]))
+  v3 = cross(x, array([0.0, 0.0, 1.0]))
+  v1n = norm(v1)
+  v2n = norm(v2)
+  v3n = norm(v3)
+  v = [v1, v2, v3][argmax([v1n, v2n, v3n])]
+  return v/norm(v)
 
 def kent(theta, phi, psi, kappa, beta):
   """
@@ -93,16 +99,6 @@ def kent4(Gamma, kappa, beta):
   gamma2 = Gamma[:,1]
   gamma3 = Gamma[:,2]
   return kent2(gamma1, gamma2, gamma3, kappa, beta)
-
-def __generate_arbitrary_orthogonal_unit_vector(x):
-  v1 = cross(x, array([1.0, 0.0, 0.0]))
-  v2 = cross(x, array([0.0, 1.0, 0.0]))
-  v3 = cross(x, array([0.0, 0.0, 1.0]))
-  v1n = norm(v1)
-  v2n = norm(v2)
-  v3n = norm(v3)
-  v = [v1, v2, v3][argmax([v1n, v2n, v3n])]
-  return v/norm(v)
   
 class KentDistribution(object):
   minimum_value_for_kappa = 1E-6
@@ -495,127 +491,10 @@ def kent_me(xs):
   
   # kappa and beta can be estimated but may not lie outside their permitted ranges
   min_kappa = KentDistribution.minimum_value_for_kappa
-  kappa = max( min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
+  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
   
   return kent4(G, kappa, beta)  
-
-def __kent_mle_output1(k_me, callback):
-  print()
-  print( "******** Maximum Likelihood Estimation ********")
-  print("Initial moment estimates are:")
-  print( "theta =", k_me.theta)
-  print( "phi   =", k_me.phi)
-  print( "psi   =", k_me.psi)
-  print( "kappa =", k_me.kappa)
-  print( "beta  =", k_me.beta)
-  print( "******** Starting the Gradient Descent ********")
-  print( "[iteration]   kappa        beta        -L")
-
-def __kent_mle_output2(x, minusL, output_count, verbose):
-  interval = verbose if isinstance(verbose, int) else 1
-  str_values = list()
-  for value in (tuple(x) + (minusL,)):
-    str_value = "%- 8g" % value
-    while len(str_value) < 12:
-      str_value += " "
-    str_values.append(str_value)
-  if output_count[0] % interval == 0:
-    print ("[%3i]       " + " %s" * 3) % tuple(output_count + str_values)
-  output_count[0] = output_count[0] + 1
-
-def kent_mle(xs, verbose=False, return_intermediate_values=False, return_bfgs_values=False, bfgs_kwargs=dict(), warning='warn'):
-  """
-  Generates a KentDistribution fitted to xs using maximum likelihood estimation
-  For a first approximation kent_me() is used. The function 
-  -k.log_likelihood(xs)/len(xs) (where k is an instance of KentDistribution) is 
-  minimized.
-  
-  Input:
-    - xs: values on the sphere to be fitted by MLE
-    - verbose: if True, output is given for every step
-    - return_intermediate_values: if true the values of all intermediate steps
-      are returned as well
-    - return_bfgs_values: if true the values from the bfgs_min algorithm are 
-      returned as well
-    - bfgs_args: extra arguments that can be passed to min_bfgs: not all arguments may
-      be overwritten. Default value of 'disp' is 0 but may be set to 1 'full_output'
-      'gtol' is chosen to be 1E-7 but may be set to other values.
-      is 1 (can't be overwritten), 'callback' can't be overwritten and the first 
-      three arguments of min_bfgs can't be overwritten. 
-    - warning: choices are 
-      - "warn": issues any warning via warning.warn
-      - a file object: which results in any warning message being written to a file 
-        (e.g. stdout) 
-      - "none": or any other value for this argument results in no warnings to be issued
-  Output:
-    - an instance of the fitted KentDistribution
-  Extra output:
-    - if return_intermediate_values and/or return_bfgs_values is specified then
-    a tuple is returned with the KentDistribution argument as the first element
-    and containing the extra requested values in the rest of the elements.
-  """
-  # first get estimated moments
-  if 'disp' not in bfgs_kwargs:
-    bfgs_kwargs['disp'] = 0
-  if 'gtol' not in bfgs_kwargs:
-    bfgs_kwargs['gtol'] = 1E-7
-  k_me = kent_me(xs)
-  gamma1, gamma2, gamma3, kappa, beta = k_me.gamma1, k_me.gamma2, k_me.gamma3, k_me.kappa, k_me.beta
-  min_kappa = KentDistribution.minimum_value_for_kappa
-  
-  # method that generates an instance of KentDistribution
-  def generate_k(fudge_kappa, fudge_beta):
-    # small value is added to kappa = min_kappa + abs(fudge_kappa) > min_kappa
-    return kent2(gamma1, gamma2, gamma3, min_kappa + abs(fudge_kappa), abs(fudge_beta))
-
-  # method that generates the minus L to be minimized
-  def minus_log_likelihood(x):
-    return -generate_k(*x).log_likelihood(xs)/len(xs)
-    
-  def minus_log_likelihood_prime(x):
-    return -generate_k(*x).log_likelihood_prime(xs)/len(xs)
-  
-  # callback for keeping track of the values
-  intermediate_values = list()
-  def callback(x, output_count=[0]):
-    minusL = -generate_k(*x).log_likelihood(xs)
-    fudge_kappa, fudge_beta = x
-    kappa, beta = min_kappa + abs(fudge_kappa), abs(fudge_beta)
-    imv = intermediate_values
-    imv.append((kappa, beta, minusL))
-        
-  # starting parameters (small value is subtracted from kappa and add in generatke k)
-  x_start = array([kappa - min_kappa, beta])
-  if verbose:
-    __kent_mle_output1(k_me, callback)
-
-  
-  # here the mle is done
-  all_values = fmin_bfgs(minus_log_likelihood, x_start, minus_log_likelihood_prime,
-    callback=callback, full_output=1, **bfgs_kwargs)
-
-  x_opt = all_values[0]
-  warnflag = all_values[6]
-  if warnflag:
-    warning_message = "Unknownw warning %s" % warnflag
-    if warnflag == 2:
-      warning_message = "Desired error not necessarily achieved due to precision loss."
-    if warnflag == 1:
-      warning_message = "Maximum number of iterations has been exceeded."
-    if warning == "warn":
-      warnings.warn(warning_message, RuntimeWarning)
-    if hasattr(warning, "write"):
-      warning.write("Warning: "+warning_message+"\n")
-  
-  k = (generate_k(*x_opt),)
-  if return_intermediate_values:
-    k += (intermediate_values,)
-  if  return_bfgs_values:
-    k += (all_values,)
-  if len(k) == 1:
-    k = k[0]
-  return k
 
 class Rotation:
     @staticmethod
@@ -643,40 +522,21 @@ def projectSphere2Equirectangular(x, w, h):
    phi[phi < 0] += 2*pi 
    return vstack([phi * float(w)/(2*pi), theta * float(h)/(pi)])
 
-def createSphere(I):
-	h, w = I.shape #960, 1920
-	#pdb.set_trace()
-	v, u = mgrid[0:h:1, 0:w:1]
-	#print(u.max(), v.max()) # u in [0,w), v in [0,h)]
-	X = projectEquirectangular2Sphere(vstack((u.reshape(-1),v.reshape(-1))).T, w, h)
-	return X, I.reshape(-1)
-
-def selectAnnotation(annotations, class_name=None):
-	idx = 0
-	rnd = randint(0,len(annotations['boxes']))
-	for ann in annotations['boxes']:
-		if class_name and ann[6] == class_name: return ann
-		elif class_name is None:
-			if idx == rnd: return ann
-			else: idx+=1 
-
 def sampleFromAnnotation_deg(annotation, shape):
     h, w = shape
     # Convert annotation to CPU and NumPy array
-    #pdb.set_trace()
     annotation = annotation.cpu().numpy()
     phi_deg, theta_deg, fov_h, fov_v = annotation
-    #pdb.set_trace()
 
     phi00 = deg2rad(phi_deg - 180)
     theta00 = deg2rad(theta_deg - 90)
 
     a_lat = deg2rad(fov_v)
     a_long = deg2rad(fov_h)
-    r =11
+    r = 11
 
     epsilon = 1e-10  # Small value to prevent division by zero
-    d_lat = r / (2 * tan(a_lat / 2))
+    d_lat = r / (2 * tan(a_lat / 2+ epsilon))
     d_long = r / (2 * tan(a_long / 2 + epsilon))  # Add epsilon to prevent division by zero
 
     p = []
@@ -693,73 +553,6 @@ def sampleFromAnnotation_deg(annotation, shape):
     v = h - (-theta / pi + 1. / 2.) * h
     return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)
 
-def sampleFromAnnotation(annotation, shape):
-    h, w = shape
-    # Convert annotation to CPU and NumPy array
-    annotation = annotation.cpu().numpy()
-    x, y, _, _, fov_h, fov_v, label = annotation
-
-    phi00 = (x - w / 2.) * ((2. * pi) / w)
-    theta00 = (y - h / 2.) * (pi / h)
-
-    a_lat = deg2rad(fov_v)
-    a_long = deg2rad(fov_h)
-
-    r = 11
-    d_lat = r / (2 * tan(a_lat / 2))
-    d_long = r / (2 * tan(a_long / 2))
-
-    p = []
-    for i in range(-(r - 1) // 2, (r + 1) // 2):
-        for j in range(-(r - 1) // 2, (r + 1) // 2):
-            p += [asarray([i * d_lat / d_long, j, d_lat])]
-
-    R = dot(Rotation.Ry(phi00), Rotation.Rx(theta00))
-    p = asarray([dot(R, (p[ij] / norm(p[ij]))) for ij in range(r * r)])
-
-    phi = asarray([arctan2(p[ij][0], p[ij][2]) for ij in range(r * r)])
-    theta = asarray([arcsin(p[ij][1]) for ij in range(r * r)])
-    u = (phi / (2 * pi) + 1. / 2.) * w
-    v = h - (-theta / pi + 1. / 2.) * h
-    return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)
-
-def tlts_kent_me(xs, xbar):
-	"""Generates and returns a KentDistribution based on a moment estimation."""
-	lenxs = len(xs)
-	#pause()
-	xbar = average(xs, 0) # average direction of samples from origin
-	S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
-	gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-	theta, phi = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-
-	H = KentDistribution.create_matrix_H(theta, phi)
-	Ht = KentDistribution.create_matrix_Ht(theta, phi)
-	B = MMul(Ht, MMul(S, H))
-	eigvals, eigvects = eig(B[1:,1:])
-	eigvals = real(eigvals)
-	if eigvals[0] < eigvals[1]:
-		eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-		eigvects = eigvects[:,::-1]
-	K = diag([1.0, 1.0, 1.0])
-	K[1:,1:] = eigvects
-  
-	G = MMul(H, K)
-	Gt = transpose(G)
-	T = MMul(Gt, MMul(S, G))
-  
-	r1 = norm(xbar)
-	t22, t33 = T[1, 1], T[2, 2]
-	r2 = t22 - t33
-  
-	# kappa and beta can be estimated but may not lie outside their permitted ranges
-	min_kappa = 1E-6
-	kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
-	beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-
-	print(f'kappa, beta  = {kappa}, {beta}')
-  
-	return kent4(G, kappa, beta)
-
 def deg2kent(annotations, h=960, w=1920):
     results = []
     for annotation in annotations:
@@ -767,22 +560,3 @@ def deg2kent(annotations, h=960, w=1920):
         k = kent_me(Xs)
         results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
     return torch.tensor(results, device=annotations.device)
-
-'''
-def deg2kent(annotations, h=960, w=1920):
-    profiler = LineProfiler()
-    profiler.add_function(sampleFromAnnotation_deg)
-    profiler.add_function(kent_me)
-    
-    @profiler
-    def profiled_deg2kent(annotations, h, w):
-        results = []
-        for annotation in annotations:
-            Xs = sampleFromAnnotation_deg(annotation, (h, w))
-            k = kent_me(Xs)
-            results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
-        return torch.tensor(results, device=annotations.device)
-    
-    result = profiled_deg2kent(annotations, h, w)
-    profiler.print_stats()
-    return result'''

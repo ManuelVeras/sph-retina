@@ -25,6 +25,23 @@ overlaps retornando nan na ultima dim
 
 - valores negativos em get_kld - > old kent_loss esta concordando com kent_loss. debugar essa merda, alguns valores negativos sao proximos a zero, mas outros nao. os scripts concordam aparentemente. o problema é que ta dando vlaor negativo. coloquei ali um exmplo, acho que tem que fazer na mao pra entender oonde que ta o erro,
 
+-sera que existe algum erro em usar a aproximação da constante e derivar???? - mesmo assim acho que podemos usar a série truncada , caso seja esse o problema
+
+
+- pareque que quando kappa eh muito pequeno ou beta muito proximno de kappa/2, temos valores negativos
+
+- ideias: limitar kappa a maior que x 
+
+
+
+
+
+
+- setar threshold de bfov: tamanho minimo 8 graus na lat 
+
+
+
+
 
 ### Variáveis e Configurações
 - **reg_decoded_bbox (bool)**: 
