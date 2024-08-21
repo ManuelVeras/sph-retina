@@ -32,7 +32,7 @@ overlaps retornando nan na ultima dim
 
 - ideias: limitar kappa a maior que x 
 
-
+ - acho que python3 kent_acessories/get_kent_annotations.py est  sendo aplicada as kents e nao as bfovs
 
 
 

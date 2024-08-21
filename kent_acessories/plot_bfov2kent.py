@@ -114,6 +114,9 @@ def plot_bfov(image: np.ndarray, v00: float, u00: float,
     # Project points and create kernel
     kernel = np.array([project_point(point, R, w, h) for point in p]).astype(np.int32)
 
+    # Ensure color is in BGR format for OpenCV
+    color = (color[2], color[1], color[0])  # Convert RGB to BGR
+
     # Plot circles and equirectangular lines
     image = plot_circles(image, kernel, color)
     #image = plotEquirectangular(image, kernel, color)
@@ -130,16 +133,16 @@ def deg_to_rad(degrees):
 # --- Projection Functions (Kent/FB5) ---
 
 def projectEquirectangular2Sphere(u, w, h):
-    phi = u[:, 1] * (pi / float(h))     # Latitude angle (phi)
-    theta = u[:, 0] * (2. * pi / float(w))  # Longitude angle (theta)
-    sinphi = sin(phi)
-    return vstack([sinphi * cos(theta), sinphi * sin(theta), cos(phi)]).T  # Cartesian coordinates (x, y, z)
+    phi = u[:, 1] * (np.pi / float(h))     # Latitude angle (phi)
+    theta = u[:, 0] * (2. * np.pi / float(w))  # Longitude angle (theta)
+    sinphi = np.sin(phi)
+    return np.vstack([sinphi * np.cos(theta), sinphi * np.sin(theta), np.cos(phi)]).T  # Cartesian coordinates (x, y, z)
 
 def projectSphere2Equirectangular(x, w, h):
-    phi = squeeze(asarray(arccos(clip(x[:, 2], -1, 1))))     # Latitude angle (phi)
-    theta = squeeze(asarray(arctan2(x[:, 1], x[:, 0])))      # Longitude angle (theta)
-    theta[theta < 0] += 2 * pi         # Ensure theta is in [0, 2*pi)
-    return vstack([theta * float(w) / (2. * pi), phi * float(h) / pi])
+    phi = np.arccos(np.clip(x[:, 2], -1, 1))     # Latitude angle (phi)
+    theta = np.arctan2(x[:, 1], x[:, 0])          # Longitude angle (theta)
+    theta[theta < 0] += 2 * np.pi         # Ensure theta is in [0, 2*pi)
+    return np.vstack([theta * float(w) / (2. * np.pi), phi * float(h) / np.pi])
 
 # --- Angle to Rotation Matrix ---
 
@@ -153,11 +156,24 @@ def angle2Gamma(alpha, eta, psi):
 
 # --- Kent (FB5) Distribution ---
 def FB5(Theta, X):
-    def __c(kappa, beta, terms=10):
+    '''def __c(kappa, beta, terms=10):
         su = 0
         for j in range(terms):
             su += G_(j + .5) / G_(j + 1) * beta ** (2 * j) * (2 / kappa) ** (2 * j + .5) * I_(2 * j + .5, kappa)
-        return 2 * pi * su
+        return 2 * pi * su'''
+    
+    def __c(kappa, beta):
+        epsilon = 1e-8  # Small value to avoid division by zero
+        exp_kappa = np.exp(kappa)
+        #pdb.set_trace()
+        
+        term1 = kappa - 2 * beta
+        term2 = kappa + 2 * beta
+        
+        denominator = (term1 * term2 + epsilon)**(-0.5)  # Add epsilon to avoid division by zero
+        
+        result = 2 * np.pi * exp_kappa * denominator
+        return result
 
     kappa, beta, Q = Theta           # Unpack parameters
     gamma_1, gamma_2, gamma_3 = Q    # Unpack rotation matrix
@@ -215,8 +231,8 @@ def main():
     kent_grayscale = (kent - kent.min()) / (kent.max() - kent.min()) * 255
     kent_image = kent_grayscale.reshape((h, w)).astype(np.uint8)
     heatmap = cv2.applyColorMap(kent_image, cv2.COLORMAP_HOT)
-    pdb.set_trace()
-    image_with_heatmap = cv2.addWeighted(image, 0.5, heatmap, 0.5, 0)
+    # Ensure the original image is in the correct color format
+    image_with_heatmap = cv2.addWeighted(image, 0.3, heatmap, 0.7, 0)  # Decrease image weight
 
     cv2.imwrite('bouding_kent.png', image_with_heatmap) 
 

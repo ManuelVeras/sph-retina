@@ -185,9 +185,7 @@ class KentDistribution(object):
   def normalize(self, cache=dict(), return_num_iterations=False, approximate=True):
     """
     Returns the normalization constant of the Kent distribution.
-    The proportional error may be expected not to be greater than 
-    1E-11.
-    
+    The proportional error may be expected not to be greater than 1E-11.
     
     >>> gamma1 = array([1.0, 0.0, 0.0])
     >>> gamma2 = array([0.0, 1.0, 0.0])
@@ -204,39 +202,25 @@ class KentDistribution(object):
     if not (k, b) in cache:
       if approximate and (2*b)/k < 1:
         print('Aproximei')
-        result = exp(k)*((k-2*b)*(k+2*b))**(-.5)
+        result = exp(k) * ((k-2*b)*(k+2*b))**(-.5)
       else:
         G = gamma_fun
         I = modified_bessel_2ndkind
         result = 0.0
         j = 0
-        if isclose(b,0.0):
-          result = (
-            ( (0.5*k)**(-2*j-0.5) )*
-            ( I(2*j+0.5, k) )
-          )
+        if isclose(b, 0.0):
+          result = ((0.5*k)**(-2*j-0.5)) * I(2*j+0.5, k)
           result /= G(j+1)
           result *= G(j+0.5)
-          #result = 2/k*sinh(k) # Eq. 3.4,5 divided by 2*pi (remultiplied latter in this function)
-          
         else:
           while True:
-            #a = (b**(2*j))*(k/2)**(-2*j-0.5)*I(2*j+0.5, k)
-            a = (
-              exp(
-                log(b)*2*j +
-                log(0.5*k)*(-2*j-0.5)
-              )*I(2*j+0.5, k)
-            )
+            a = exp(log(b)*2*j + log(0.5*k)*(-2*j-0.5)) * I(2*j+0.5, k)
             a /= G(j+1)
             a *= G(j+0.5)
             result += a
-            
             j += 1
             if abs(a) < abs(result)*1E-12 and j > 5:
               break
-            #elif j == 100: break # O ALGORITMO FALHA AQUI
-                
       cache[k, b] = 2*pi*result
     if return_num_iterations:
       return cache[k, b], j
@@ -253,7 +237,6 @@ class KentDistribution(object):
     else:
       return log(self.normalize())
       
-  
   def pdf_max(self, normalize=True):
     return exp(self.log_pdf_max(normalize))
 
@@ -264,10 +247,10 @@ class KentDistribution(object):
     if self.beta == 0.0:
       x = 1
     else:
-      x = self.kappa*1.0/(2*self.beta)
+      x = self.kappa * 1.0 / (2 * self.beta)
     if x > 1.0:
       x = 1
-    fmax = self.kappa*x + self.beta*(1-x**2)
+    fmax = self.kappa * x + self.beta * (1 - x**2)
     if normalize:
       return fmax - self.log_normalize()
     else:
@@ -363,27 +346,24 @@ class KentDistribution(object):
         dcdb = 0.0 
       else:
         while True:
-          dk = (
-            (-1*j-0.25)*exp(
+          dk =  ((-1*j-0.25)*exp(
               log(b)*2*j + 
               log(0.5*k)*(-2*j-1.5)
-            )*I(2*j+0.5, k)
-          )
-          dk += (
-            exp(
+            )*I(2*j+0.5, k))
+          
+          dk += (exp(
               log(b)*2*j +
               log(0.5*k)*(-2*j-0.5)
-            )*dIdk(2*j+0.5, k)
-          )        
+            )*dIdk(2*j+0.5, k))
+                  
           dk /= G(j+1)
           dk *= G(j+0.5)                        
 
-          db = (
-            2*j*exp(
+          db = (2*j*exp(
               log(b)*(2*j-1) +
               log(0.5*k)*(-2*j-0.5)
-            ) * I(2*j+0.5, k)
-          )
+            ) * I(2*j+0.5, k))
+          
           db /= G(j+1)
           db *= G(j+0.5)                     
           dcdk += dk
@@ -491,10 +471,12 @@ def kent_me(xs):
   
   # kappa and beta can be estimated but may not lie outside their permitted ranges
   min_kappa = KentDistribution.minimum_value_for_kappa
-  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2)  )
+  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-  
-  return kent4(G, kappa, beta)  
+  k = kent4(G, kappa, beta) 
+  k_par = [k.theta, k.phi, k.psi, k.kappa, k.beta]
+  pdb.set_trace()
+  return teste
 
 class Rotation:
     @staticmethod
@@ -560,3 +542,12 @@ def deg2kent(annotations, h=960, w=1920):
         k = kent_me(Xs)
         results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
     return torch.tensor(results, device=annotations.device)
+  
+
+#Used in get_kent_annotations.py
+def deg2kent_single(annotations, h=960, w=1920):
+  results = []
+  Xs = sampleFromAnnotation_deg(annotations, (h, w))
+  k = kent_me(Xs)
+  results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
+  return torch.tensor(results)
