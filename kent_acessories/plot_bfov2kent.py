@@ -223,9 +223,9 @@ def main():
     psi, alpha, eta, kappa, beta = 1.5135277107138325, -2.989421759431538, 0.6378340180954485, 620.7227651655078, 3.410605131648481e-13
 
     Q = angle2Gamma(alpha, eta, psi)
-    Theta = (kappa, beta, Q)
+    theta = (kappa, beta, Q)
 
-    kent = FB5(Theta, X)
+    kent = FB5(theta, X)
 
     # --- Convert Probability to Image ---
     kent_grayscale = (kent - kent.min()) / (kent.max() - kent.min()) * 255

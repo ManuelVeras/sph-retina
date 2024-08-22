@@ -15,32 +15,11 @@ bbox_targets -> existem linhas (bonding kents) com valores de 0 em todas dims, p
 
 
 
--> ok, descobri que a o codigo do iou/loss da kent estava usando as coisas em ordem kappa, beta, phi, psi, eta, mas o codigo original do kent usa phi, psi, eta, kappa, beta....
+-> descobri que a o codigo do iou/loss da kent estava usando as coisas em ordem kappa, beta, phi, psi, eta, mas o codigo original do kent usa phi, psi, eta, kappa, beta....
 
 -> pelo jeito o codigo do iou/loss esta recebendo em angulos, tambem e o certo seria radianos (será??)
 
-loss retornando nan debugar essa póraaa
-overlaps retornando nan na ultima dim
-
-
-- valores negativos em get_kld - > old kent_loss esta concordando com kent_loss. debugar essa merda, alguns valores negativos sao proximos a zero, mas outros nao. os scripts concordam aparentemente. o problema é que ta dando vlaor negativo. coloquei ali um exmplo, acho que tem que fazer na mao pra entender oonde que ta o erro,
-
--sera que existe algum erro em usar a aproximação da constante e derivar???? - mesmo assim acho que podemos usar a série truncada , caso seja esse o problema
-
-
-- pareque que quando kappa eh muito pequeno ou beta muito proximno de kappa/2, temos valores negativos
-
-- ideias: limitar kappa a maior que x 
-
- - acho que python3 kent_acessories/get_kent_annotations.py est  sendo aplicada as kents e nao as bfovs
-
-
-
-
-- setar threshold de bfov: tamanho minimo 8 graus na lat 
-
-
-
+- aparentemente o target esta zerado. pq????/
 
 
 ### Variáveis e Configurações

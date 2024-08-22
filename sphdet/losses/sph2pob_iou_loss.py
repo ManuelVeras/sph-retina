@@ -1,5 +1,5 @@
 import math
-
+import pdb
 import torch
 import torch.nn as nn
 from mmcv.ops import diff_iou_rotated_2d
@@ -29,6 +29,9 @@ class OBBIoULoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
+        
+        pdb.set_trace()
+        
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -182,6 +185,8 @@ class SphIoULoss(nn.Module):
         self.eps = eps
         self.reduction = reduction
         self.loss_weight = loss_weight
+        
+        pdb.set_trace()
 
         if iou_calculator == 'sph':
             self.iou_calculator = sph_iou
@@ -225,6 +230,7 @@ class SphIoULoss(nn.Module):
 def sph_iou_loss(pred, target, mode='iou', iou_calculator=sph2pob_standard_iou):
     r"""Several versions of iou-based loss for spherical boxes.
     """
+    pdb.set_trace()
     ious = iou_calculator(pred, target, is_aligned=True, calculator='diff')
 
     if mode == 'iou':

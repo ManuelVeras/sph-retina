@@ -11,6 +11,7 @@ but also as a test. It performs some higher level tests but it also
 generates example plots if called directly from the shell.
 """
 
+import numpy as np
 from numpy import *
 from scipy.optimize import fmin_bfgs
 from scipy.special import gamma as gamma_fun
@@ -52,12 +53,12 @@ def __generate_arbitrary_orthogonal_unit_vector(x):
   v = [v1, v2, v3][argmax([v1n, v2n, v3n])]
   return v/norm(v)
 
-def kent(theta, phi, psi, kappa, beta):
+def kent(alpha, eta, psi, kappa, beta):
   """
-  Generates the Kent distribution based on the spherical coordinates theta, phi, psi
+  Generates the Kent distribution based on the spherical coordinates alpha, eta, psi
   with the concentration parameter kappa and the ovalness beta
   """
-  gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(theta, phi, psi)
+  gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(alpha, eta, psi)
   k = KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
   return k
 
@@ -87,8 +88,8 @@ def kent3(A, B):
     gamma2 = __generate_arbitrary_orthogonal_unit_vector(gamma1)
   else:
     gamma2 = B/beta
-  theta, phi, psi = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
-  gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(theta, phi, psi)
+  alpha, eta, psi = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
+  gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(alpha, eta, psi)
   return KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
   
 def kent4(Gamma, kappa, beta):
@@ -103,16 +104,16 @@ def kent4(Gamma, kappa, beta):
 class KentDistribution(object):
   minimum_value_for_kappa = 1E-6
   @staticmethod
-  def create_matrix_H(theta, phi):
+  def create_matrix_H(alpha, eta):
     return array([
-      [cos(theta),          -sin(theta),         0.0      ],
-      [sin(theta)*cos(phi), cos(theta)*cos(phi), -sin(phi)],
-      [sin(theta)*sin(phi), cos(theta)*sin(phi), cos(phi) ]
+      [cos(alpha),          -sin(alpha),         0.0      ],
+      [sin(alpha)*cos(eta), cos(alpha)*cos(eta), -sin(eta)],
+      [sin(alpha)*sin(eta), cos(alpha)*sin(eta), cos(eta) ]
     ])
 
   @staticmethod
-  def create_matrix_Ht(theta, phi):
-    return transpose(KentDistribution.create_matrix_H(theta, phi))
+  def create_matrix_Ht(alpha, eta):
+    return transpose(KentDistribution.create_matrix_H(alpha, eta))
 
   @staticmethod
   def create_matrix_K(psi):
@@ -127,18 +128,18 @@ class KentDistribution(object):
     return transpose(KentDistribution.create_matrix_K(psi)) 
   
   @staticmethod
-  def create_matrix_Gamma(theta, phi, psi):
-    H = KentDistribution.create_matrix_H(theta, phi)
+  def create_matrix_Gamma(alpha, eta, psi):
+    H = KentDistribution.create_matrix_H(alpha, eta)
     K = KentDistribution.create_matrix_K(psi)
     return MMul(H, K)
   
   @staticmethod
-  def create_matrix_Gammat(theta, phi, psi):
-    return transpose(KentDistribution.create_matrix_Gamma(theta, phi, psi))
+  def create_matrix_Gammat(alpha, eta, psi):
+    return transpose(KentDistribution.create_matrix_Gamma(alpha, eta, psi))
   
   @staticmethod
-  def spherical_coordinates_to_gammas(theta, phi, psi):
-    Gamma = KentDistribution.create_matrix_Gamma(theta, phi, psi)
+  def spherical_coordinates_to_gammas(alpha, eta, psi):
+    Gamma = KentDistribution.create_matrix_Gamma(alpha, eta, psi)
     gamma1 = Gamma[:,0]
     gamma2 = Gamma[:,1]
     gamma3 = Gamma[:,2]    
@@ -146,17 +147,17 @@ class KentDistribution(object):
 
   @staticmethod
   def gamma1_to_spherical_coordinates(gamma1):
-    theta = arccos(gamma1[0])
-    phi = arctan2(gamma1[2], gamma1[1])
-    return theta, phi
+    alpha = arccos(gamma1[0])
+    eta = arctan2(gamma1[2], gamma1[1])
+    return alpha, eta
 
   @staticmethod
   def gammas_to_spherical_coordinates(gamma1, gamma2):
-    theta, phi = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-    Ht = KentDistribution.create_matrix_Ht(theta, phi)
+    alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
+    Ht = KentDistribution.create_matrix_Ht(alpha, eta)
     u = MMul(Ht, reshape(gamma2, (3, 1)))
     psi = arctan2(u[2][0], u[1][0])
-    return theta, phi, psi
+    return alpha, eta, psi
 
   
   def __init__(self, gamma1, gamma2, gamma3, kappa, beta):
@@ -170,7 +171,7 @@ class KentDistribution(object):
     #print(gamma2)
     #print(gamma3)
     
-    self.theta, self.phi, self.psi = KentDistribution.gammas_to_spherical_coordinates(self.gamma1, self.gamma2)
+    self.alpha, self.eta, self.psi = KentDistribution.gammas_to_spherical_coordinates(self.gamma1, self.gamma2)
     
     for gamma in gamma1, gamma2, gamma3:
       assert len(gamma) == 3
@@ -180,7 +181,7 @@ class KentDistribution(object):
   
   @property
   def Gamma(self):
-    return self.create_matrix_Gamma(self.theta, self.phi, self.psi)
+    return self.create_matrix_Gamma(self.alpha, self.eta, self.psi)
   
   def normalize(self, cache=dict(), return_num_iterations=False, approximate=True):
     """
@@ -439,7 +440,7 @@ class KentDistribution(object):
       return retval
       
   def __repr__(self):
-    return "kent(%s, %s, %s, %s, %s)" % (self.theta, self.phi, self.psi, self.kappa, self.beta)
+    return "kent(%s, %s, %s, %s, %s)" % (self.alpha, self.eta, self.psi, self.kappa, self.beta)
       
 def kent_me(xs):
   """Generates and returns a KentDistribution based on a moment estimation."""
@@ -447,10 +448,10 @@ def kent_me(xs):
   xbar = average(xs, 0) # average direction of samples from origin
   S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
   gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-  theta, phi = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
+  alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
   
-  H = KentDistribution.create_matrix_H(theta, phi)
-  Ht = KentDistribution.create_matrix_Ht(theta, phi)
+  H = KentDistribution.create_matrix_H(alpha, eta)
+  Ht = KentDistribution.create_matrix_Ht(alpha, eta)
   B = MMul(Ht, MMul(S, H))
   
   eigvals, eigvects = eig(B[1:,1:])
@@ -473,10 +474,9 @@ def kent_me(xs):
   min_kappa = KentDistribution.minimum_value_for_kappa
   kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-  k = kent4(G, kappa, beta) 
-  k_par = [k.theta, k.phi, k.psi, k.kappa, k.beta]
-  pdb.set_trace()
-  return teste
+  #k = kent4(G, kappa, beta) 
+  #k_par = [k.alpha, k.eta, k.psi, k.kappa, k.beta]
+  return kent4(G, kappa, beta)
 
 class Rotation:
     @staticmethod
@@ -492,26 +492,26 @@ class Rotation:
         return asarray([[cos(gamma), -sin(gamma), 0], [sin(gamma), cos(gamma), 0], [0, 0, 1]])
 
 def projectEquirectangular2Sphere(u, w, h):
-   #NOTE: phi and theta differ from usual definition
-   theta = u[:,1] * (pi/float(h))
-   phi = u[:,0] * (2.*pi/float(w))
-   return vstack([cos(theta), sin(theta)*cos(phi), sin(theta)*sin(phi)]).T
+   #NOTE: eta and alpha differ from usual definition
+   alpha = u[:,1] * (pi/float(h))
+   eta = u[:,0] * (2.*pi/float(w))
+   return vstack([cos(alpha), sin(alpha)*cos(eta), sin(alpha)*sin(eta)]).T
 
 def projectSphere2Equirectangular(x, w, h):
-   #NOTE: phi and theta differ from usual definition
-   theta = squeeze(asarray(arccos(clip(x[:,0],-1,1))))
-   phi = squeeze(asarray(arctan2(x[:,2],x[:,1])))
-   phi[phi < 0] += 2*pi 
-   return vstack([phi * float(w)/(2*pi), theta * float(h)/(pi)])
+   #NOTE: eta and alpha differ from usual definition
+   alpha = squeeze(asarray(arccos(clip(x[:,0],-1,1))))
+   eta = squeeze(asarray(arctan2(x[:,2],x[:,1])))
+   eta[eta < 0] += 2*pi 
+   return vstack([eta * float(w)/(2*pi), alpha * float(h)/(pi)])
 
 def sampleFromAnnotation_deg(annotation, shape):
     h, w = shape
     # Convert annotation to CPU and NumPy array
     annotation = annotation.cpu().numpy()
-    phi_deg, theta_deg, fov_h, fov_v = annotation
+    eta_deg, alpha_deg, fov_h, fov_v = annotation
 
-    phi00 = deg2rad(phi_deg - 180)
-    theta00 = deg2rad(theta_deg - 90)
+    eta00 = deg2rad(eta_deg - 180)
+    alpha00 = deg2rad(alpha_deg - 90)
 
     a_lat = deg2rad(fov_v)
     a_long = deg2rad(fov_h)
@@ -526,13 +526,13 @@ def sampleFromAnnotation_deg(annotation, shape):
         for j in range(-(r - 1) // 2, (r + 1) // 2):
             p += [asarray([i * d_lat / d_long, j, d_lat])]
 
-    R = dot(Rotation.Ry(phi00), Rotation.Rx(theta00))
+    R = dot(Rotation.Ry(eta00), Rotation.Rx(alpha00))
     p = asarray([dot(R, (p[ij] / norm(p[ij]))) for ij in range(r * r)])
 
-    phi = asarray([arctan2(p[ij][0], p[ij][2]) for ij in range(r * r)])
-    theta = asarray([arcsin(p[ij][1]) for ij in range(r * r)])
-    u = (phi / (2 * pi) + 1. / 2.) * w
-    v = h - (-theta / pi + 1. / 2.) * h
+    eta = asarray([arctan2(p[ij][0], p[ij][2]) for ij in range(r * r)])
+    alpha = asarray([arcsin(p[ij][1]) for ij in range(r * r)])
+    u = (eta / (2 * pi) + 1. / 2.) * w
+    v = h - (-alpha / pi + 1. / 2.) * h
     return projectEquirectangular2Sphere(vstack((u, v)).T, w, h)
 
 def deg2kent(annotations, h=960, w=1920):
@@ -540,7 +540,7 @@ def deg2kent(annotations, h=960, w=1920):
     for annotation in annotations:
         Xs = sampleFromAnnotation_deg(annotation, (h, w))
         k = kent_me(Xs)
-        results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
+        results.append([k.alpha, k.eta, k.psi, k.kappa, k.beta])
     return torch.tensor(results, device=annotations.device)
   
 
@@ -549,5 +549,6 @@ def deg2kent_single(annotations, h=960, w=1920):
   results = []
   Xs = sampleFromAnnotation_deg(annotations, (h, w))
   k = kent_me(Xs)
-  results.append([k.theta, k.phi, k.psi, k.kappa, k.beta])
+  results.append([k.psi+np.pi/2, k.alpha, k.eta+np.pi, k.kappa, k.beta])
+  #results.append([k.psi+np.pi/2, k.alpha, k.eta, k.kappa, k.beta])
   return torch.tensor(results)

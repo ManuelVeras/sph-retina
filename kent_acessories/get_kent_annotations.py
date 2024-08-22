@@ -11,7 +11,7 @@ INPUT_FILENAME = 'datasets/360INDOOR/annotations/instances_train2017.json'
 OUTPUT_FILENAME_TEMPLATE = 'datasets/annotations_small/instances_train2017_transformed_5.json'
 
 # Define filtering parameters
-IMAGE_LIMIT = 10  # Change this value to the desired number of images
+IMAGE_LIMIT = 10000  # Change this value to the desired number of images
 LIMIT = 10  # Change this value to the desired number of objects
 MIN_BBOX_SIZE = 8
 MIN_KAPPA = 10
@@ -42,7 +42,7 @@ def filter_low_kappas(obj):
     return obj['bbox'][3] >= MIN_KAPPA
 
 def filter_betas(obj):
-    return obj['bbox'][3]/obj['bbox'][4] < BETA_RATIO_THRESHOLD
+    return obj['bbox'][3]/(obj['bbox'][4]+1e-6) < BETA_RATIO_THRESHOLD
 
 def main():
     # Read the entire JSON file
@@ -102,9 +102,7 @@ def main():
         
         if abs(obj['bbox'][2]) < 1e-6:
             obj['bbox'][2] = 0
-        
-        print(obj)
-        # Add the transformed object to the list
+                # Add the transformed object to the list
         transformed_annotations.append(obj)
 
     # Update the annotations and images in the original JSON structure

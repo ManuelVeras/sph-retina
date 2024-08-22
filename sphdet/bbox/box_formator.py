@@ -1,3 +1,4 @@
+import pdb
 import math
 import torch
 import sys
@@ -210,6 +211,7 @@ class Planar2KentTransform:
         self.transform_2 = _sph_box2kent_transform
     
     def __call__(self, boxes, img_size=(512, 1024), box_version=None):
+        #pdb.set_trace()
         box_version = self.box_version if box_version is None else box_version
         sph = self.transform_1(xyxy2xywh(boxes), img_size)
         kent = self.transform_2(sph, img_size)

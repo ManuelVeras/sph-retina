@@ -268,13 +268,10 @@ class KentRetinaHead(RetinaHead):
             anchors = anchors.reshape(-1, self.box_version)
             bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
            
-        
         loss_bbox = self.loss_bbox(
             bbox_pred,
             bbox_targets,
             bbox_weights,
             avg_factor=num_total_samples)
-        
-        print(loss_bbox)
-        
+                
         return loss_cls, loss_bbox

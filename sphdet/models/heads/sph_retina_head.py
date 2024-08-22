@@ -1,4 +1,5 @@
 import torch
+import pdb
 from mmdet.models.builder import HEADS
 from mmdet.models.dense_heads import RetinaHead
 from mmdet.core.utils import filter_scores_and_topk
@@ -258,6 +259,10 @@ class SphRetinaHead(RetinaHead):
             # decodes the already encoded coordinates to absolute format.
             anchors = anchors.reshape(-1, self.box_version)
             bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+            
+        #print(bbox_pred)
+        #print(bbox_targets)
+        
         loss_bbox = self.loss_bbox(
             bbox_pred,
             bbox_targets,
