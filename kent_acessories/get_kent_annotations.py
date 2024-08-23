@@ -11,10 +11,11 @@ INPUT_FILENAME = 'datasets/360INDOOR/annotations/instances_train2017.json'
 OUTPUT_FILENAME_TEMPLATE = 'datasets/annotations_small/instances_train2017_transformed_5.json'
 
 # Define filtering parameters
-IMAGE_LIMIT = 10000  # Change this value to the desired number of images
+IMAGE_LIMIT = 100  # Change this value to the desired number of images
 LIMIT = 10  # Change this value to the desired number of objects
 MIN_BBOX_SIZE = 8
 MIN_KAPPA = 10
+MAX_KAPPA = 100
 BETA_RATIO_THRESHOLD = 2.5
 
 def setup_logging(output_filename):
@@ -39,7 +40,7 @@ def filter_small_bfovs(obj):
     return obj['bbox'][2] >= MIN_BBOX_SIZE and obj['bbox'][3] >= MIN_BBOX_SIZE
 
 def filter_low_kappas(obj):
-    return obj['bbox'][3] >= MIN_KAPPA
+    return obj['bbox'][3] >= MIN_KAPPA and obj['bbox'][3] <= MAX_KAPPA
 
 def filter_betas(obj):
     return obj['bbox'][3]/(obj['bbox'][4]+1e-6) < BETA_RATIO_THRESHOLD

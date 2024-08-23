@@ -39,15 +39,41 @@ def radians_to_Q(psi: torch.Tensor, alpha: torch.Tensor, eta: torch.Tensor) -> t
 
 def c_approximation(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     epsilon = 1e-8  # Small value to avoid division by zero
+    #print("kappa:", kappa)
+    
     exp_kappa = torch.exp(kappa)
-    #pdb.set_trace()
     
     term1 = kappa - 2 * beta
     term2 = kappa + 2 * beta
     
-    denominator = (term1 * term2 + epsilon)**(-0.5)  # Add epsilon to avoid division by zero
+    # Debug prints to inspect intermediate values
+    #print("kappa:", kappa)
+    #print("beta:", beta)
+    #print("term1:", term1)
+    #print("term2:", term2)
+    
+    product = term1 * term2
+    #print("product:", product)
+    
+    #if torch.isnan(product).any() or torch.isinf(product).any():
+    #    print("NaN or Inf detected in product")
+    
+    #if (product < 0).any():
+    #    print("Negative values detected in product")
+    
+    denominator = (product + epsilon)**(-0.5)  # Add epsilon to avoid division by zero
+    
+    # More debug prints
+    #print("denominator:", denominator)
+    
+    #if torch.isnan(denominator).any() or torch.isinf(denominator).any():
+    #    print("NaN or Inf detected in denominator")
+    #print('2 * torch.pi * exp_kappa = ', 2 * torch.pi * exp_kappa)
     
     result = 2 * torch.pi * exp_kappa * denominator
+    
+    #print("kld:", result)
+    
     check_nan_inf(result, "c_approximation")
     return result
 
@@ -166,6 +192,9 @@ def kld_matrix(kappa_a: torch.Tensor, beta_a: torch.Tensor, gamma_a1: torch.Tens
     return kld
 
 def get_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
+    
+    #print(kent_pred)
+    
     psi_a, alpha_a, eta_a, kappa_a, beta_a = kent_pred[:, 0], kent_pred[:, 1], kent_pred[:, 2], kent_pred[:, 3], kent_pred[:, 4]
     Q_matrix_a = radians_to_Q(psi_a, alpha_a, eta_a)
 
@@ -206,14 +235,24 @@ def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float =
     #assert not invalid_a_last_two.any(), f"Last two columns of kent_pred must be > 0 and < 200, but found invalid indices: {invalid_a_last_two_indices}"
     #assert not invalid_b_first_three.any(), f"First three columns of kent_target must be between -pi and pi, but found invalid indices: {invalid_b_first_three_indices}"
     #assert not invalid_b_last_two.any(), f"Last two columns of kent_target must be > 0 and < 200, but found invalid indices: {invalid_b_last_two_indices}"
-    kld = get_kld(kent_pred, kent_target)
+    #print(kent_pred)
     
     if torch.all(kent_target == 0):
         print("Tensor contains all zeros")
     else:
         print("Tensor does not contain all zeros")
+        #GAMBIARRA DO CARALHO
+        eps = 1e-7
+        kent_target[..., 3].clamp_(min=10, max=50)
+        kent_target[..., 4].clamp_(min=eps, max=25)
     
-    pdb.set_trace()
+    #print('kent target = ', kent_target)
+    #print('kent pred = ', kent_pred)
+    
+    kld = get_kld(kent_pred, kent_target)
+    
+    
+    #pdb.set_trace()
     result = 1 - 1 / (const + torch.sqrt(kld))
     check_nan_inf(result, "kent_loss")
     return result
@@ -231,6 +270,8 @@ class KentLoss(nn.Module):
 
 def kent_iou_calculator(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
     kld = get_kld(kent_pred, kent_target)
+    print('kent target = ', kent_target)
+    print('kent pred = ', kent_pred)
     result = 1 / (1 + torch.sqrt(kld))
     check_nan_inf(result, "kent_iou_calculator")
     return result
@@ -253,63 +294,3 @@ def generate_random_kent_distributions(num_samples: int, seed: int = 42) -> torc
     kent_distributions = torch.stack([psi, alpha, eta, kappa, beta], dim=1)
     check_nan_inf(kent_distributions, "generate_random_kent_distributions")
     return kent_distributions
-
-if __name__ == "__main__":
-    '''
-    kent_pred1 = [20, 0, 0, 20.2, 4.1] 
-    kent_pred2 = [10, 0, 0, 9.1, 4.1]
-    kent_pred3 = [0, 0, 0, 10.1, 4.1]
-    kent_pred4 = [0, 0, 0, 10.1, 4.1]
-    
-    kent_pred = torch.tensor([kent_pred1, kent_pred2, kent_pred3, kent_pred4], dtype=torch.float32, requires_grad=True)
-
-    kent_target1 = [0,0,0, 30.1, 4.1] 
-    kent_target2 = [20, 0, 0, 20.1, 4.1]
-    kent_target3 = [0, 0, 0, 30.1, 4.1]
-    kent_target4 = kent_pred1
-    kent_target5 = kent_pred2
-
-    kent_target = torch.tensor([kent_target1, kent_target2, kent_target3, kent_target4, kent_target5], dtype=torch.float32, requires_grad=True)
-
-    #nkent_loss_result = get_kld(kent_pred, kent_target)'''
-    
-    '''
-    kent_pred[73583]: tensor([2.7949, 0.0676, 0.4502, 1.6154, 0.7361])
-    kent_target[0]: tensor([ 2.7717,  2.8746,  2.4056, 47.9694,  9.3648])
-    Negative KLD value: -27.290111541748047
-    kent_pred[73607]: tensor([2.2945, 1.1818, 5.1394, 0.2615, 0.0293])
-    kent_target[0]: tensor([ 2.7717,  2.8746,  2.4056, 47.9694,  9.3648])
-    Negative KLD value: -176.47909545898438
-    
-    kent_pred[73624]: tensor([2.2700, 1.9581, 6.0837, 0.8049, 0.3534])
-    kent_target[0]: tensor([ 2.7717,  2.8746,  2.4056, 47.9694,  9.3648])
-    Negative KLD value: -2.807373046875
-    
-    kent_pred[73627]: tensor([2.3790, 0.7116, 4.2258, 4.4740, 2.2091])
-    kent_target[0]: tensor([ 2.7717,  2.8746,  2.4056, 47.9694,  9.3648])
-    '''
-    kent_pred = generate_random_kent_distributions(3000, seed=42)
-    kent_target = generate_random_kent_distributions(30, seed=43)
-    print(kent_pred, kent_target)
-    #print(kent_distributions)
-
-
-    #kent_pred = torch.tensor([[7.0000, 9.0000, 7.0000, 6.3434, 3.0207]])
-    #kent_target = torch.tensor([[3.0000, 3.0000, 0.0000, 2.3307, 1.1098]])
-    #kent_target = torch.tensor([[6., 3., 6.0000, 9.0000, 7.0000]])
-    #kent_pred = torch.tensor([[8.8785, 3.0125, 5.3710, 3.5621, 0.1642], [8.8785, 3.0125, 5.3710, 3.5621, 0.1642]])
-    #kent_target = torch.tensor([[7.2833e+00, 8.0882e+00, 2.2422e+00, 1.1072e-01, 5.2726e-02], [7.2833e+00, 8.0882e+00, 2.2422e+00, 1.1072e-01, 5.2726e-02]])
-    
-    #num cols = kent_target, num rows = kent_pred
-    kld_matrix = get_kld(kent_pred, kent_target)
-    threshold = 1e-6  # Define a small threshold value
-    kld_matrix[kld_matrix.abs() < threshold] = 0
-    print(kld_matrix)
-    
-    negative_indices = torch.nonzero(kld_matrix < 0, as_tuple=False)
-    
-    for idx in negative_indices:
-        i, j = idx
-        print(f"Negative KLD value: {kld_matrix[i, j]}")
-        print(f"kent_pred[{i}]: {kent_pred[i]}")
-        print(f"kent_target[{j}]: {kent_target[j]}")

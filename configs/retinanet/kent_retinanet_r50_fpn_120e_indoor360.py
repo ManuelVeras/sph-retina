@@ -24,7 +24,7 @@ data = dict(
 
 
 model = dict(
-    bbox_head=dict(
+    bbox_head=dict(reg_decoded_bbox=True,
         anchor_generator=dict(
             box_formator='sph2pix'),
         loss_cls=dict(

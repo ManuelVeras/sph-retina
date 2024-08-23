@@ -97,6 +97,7 @@ class KentCoder(BaseBBoxCoder):
                                         self.stds, max_shape, wh_ratio_clip,
                                         self.clip_border, self.add_ctr_clamp,
                                         self.ctr_clamp)
+            #pdb.set_trace()
 
         return decoded_bboxes
 
@@ -247,11 +248,16 @@ def delta2bbox(rois,
     gxy = pxyz + dxyz
     gwh = pkb + dkb
 
+
     bboxes = torch.cat([gxy, gwh], dim=-1)
     if clip_border: #and max_shape is not None:
         # TODO just for chenbin-format, i.e. ([0, 360), [0, 180), [0, 360], [0, 180]), deg
-        bboxes[..., 0:3].clamp_(min=-3, max=3)
-        bboxes[..., 3:].clamp_(min=eps, max=200)
+        pass
+        
+    if True:
+        bboxes[..., 3].clamp_(min=10, max=50)
+        bboxes[..., 4].clamp_(min=eps, max=2*eps)
     
+    #pdb.set_trace()
     bboxes = bboxes.reshape(num_bboxes, -1)
     return bboxes

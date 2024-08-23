@@ -267,6 +267,7 @@ class KentRetinaHead(RetinaHead):
             # decodes the already encoded coordinates to absolute format.
             anchors = anchors.reshape(-1, self.box_version)
             bbox_pred = self.bbox_coder.decode(anchors, bbox_pred)
+        #pdb.set_trace()       
            
         loss_bbox = self.loss_bbox(
             bbox_pred,

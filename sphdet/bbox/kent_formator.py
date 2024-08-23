@@ -30,6 +30,9 @@ import time
 from numpy.random import seed, uniform, randint	
 import warnings
 import pdb
+from .efficient_sample_from_annotation import sampleFromAnnotation_deg
+
+
 #import sys
 #import json 
 
@@ -504,7 +507,7 @@ def projectSphere2Equirectangular(x, w, h):
    eta[eta < 0] += 2*pi 
    return vstack([eta * float(w)/(2*pi), alpha * float(h)/(pi)])
 
-def sampleFromAnnotation_deg(annotation, shape):
+def sampleFromAnnotation_deg_stale(annotation, shape):
     h, w = shape
     # Convert annotation to CPU and NumPy array
     annotation = annotation.cpu().numpy()
