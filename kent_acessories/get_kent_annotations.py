@@ -76,6 +76,9 @@ def main():
     # Log the preamble with filtering parameters
     log_preamble()
 
+    original_annotations = []
+    new_annotations = []
+
     for obj in filtered_annotations[:]:
         original_bbox = obj['bbox'].copy()
         original_area = obj['area']
@@ -103,7 +106,15 @@ def main():
         
         if abs(obj['bbox'][2]) < 1e-6:
             obj['bbox'][2] = 0
-                # Add the transformed object to the list
+        
+        # Print original and new annotations
+        print(f"Original annotation: {original_bbox}, New annotation: {obj['bbox']}")
+        
+        # Add the original and transformed object to the lists
+        original_annotations.append(original_bbox)
+        new_annotations.append(obj['bbox'])
+
+        # Add the transformed object to the list
         transformed_annotations.append(obj)
 
     # Update the annotations and images in the original JSON structure
@@ -115,8 +126,11 @@ def main():
         json.dump(json_data, outfile, indent=4)
 
     # Print the log file location
-    print(f"Transformation log file created: {log_filename}")
+    #print(f"Transformation log file created: {log_filename}")
 
+    return original_annotations, new_annotations
 
 if __name__ == "__main__":
-    main()
+    original_annotations, new_annotations = main()
+    #print("Original Annotations:", original_annotations)
+    #print("New Annotations:", new_annotations)

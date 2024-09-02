@@ -3,7 +3,8 @@ import math
 import torch
 import sys
 import os
-from .kent_formator import deg2kent
+from .kent_formator import deg2kent, deg2kent_approx
+from .kent_formator_torch_simple import deg2kent_torch
 
 from scipy.special import gamma as gamma_fun
 from scipy.special import iv as modified_bessel_2ndkind
@@ -94,7 +95,12 @@ def _pix2sph_box_transform(boxes, img_size):
 
 def _sph_box2kent_transform(boxes, img_size):
     img_h, img_w = img_size
-    return deg2kent(boxes, img_h, img_w)
+    return deg2kent_torch(boxes, img_h, img_w)
+
+
+def _sph_box2kent_transform_approximation(boxes, img_size):
+    img_h, img_w = img_size
+    return deg2kent_approx(boxes, img_h, img_w)
 
 def _sph2tan_box_transform(boxes, img_size):
     img_h, img_w = img_size
@@ -220,6 +226,12 @@ class Planar2KentTransform:
 class SphBox2KentTransform:
     def __init__(self):
         self.transform = _sph_box2kent_transform
+    def __call__(self, boxes, img_size=(512, 1024)):
+        return self.transform(boxes, img_size)
+    
+class SphBox2KentTransformApproximation:
+    def __init__(self):
+        self.transform = _sph_box2kent_transform_approximation
     def __call__(self, boxes, img_size=(512, 1024)):
         return self.transform(boxes, img_size)
 

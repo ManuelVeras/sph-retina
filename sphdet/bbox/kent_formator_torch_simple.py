@@ -20,6 +20,8 @@ import warnings
 import pdb
 from efficient_sample_from_annotation import sampleFromAnnotation_deg
 
+torch.autograd.set_detect_anomaly(True)  # Enable anomaly detection
+
 #helper function
 def MMul(A, B):
   return torch.inner(A, torch.transpose(B, 0, 1))
@@ -55,25 +57,6 @@ def kent2(gamma1, gamma2, gamma3, kappa, beta):
   gamma2 and gamma3, with the concentration parameter kappa and the ovalness beta
   """
   return KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
-    
-def kent3(A, B):
-  """
-  Generates the Kent distribution using the orthogonal vectors A and B
-  where A = gamma1*kappa and B = gamma2*beta (gamma3 is inferred)
-  A may have not have length zero but may be arbitrarily close to zero
-  B may have length zero however. If so, then an arbitrary value for gamma2
-  (orthogonal to gamma1) is chosen
-  """
-  kappa = norm(A)
-  beta = norm(B)
-  gamma1 = A/kappa
-  if beta == 0.0:
-    gamma2 = __generate_arbitrary_orthogonal_unit_vector(gamma1)
-  else:
-    gamma2 = B/beta
-  alpha, eta, psi = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
-  gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(alpha, eta, psi)
-  return KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
   
 def kent4(Gamma, kappa, beta):
   """
@@ -88,10 +71,10 @@ class KentDistribution(object):
   minimum_value_for_kappa = 1E-6
   @staticmethod
   def create_matrix_H(alpha, eta):
-    return torch.tensor([
-      [cos(alpha),          -sin(alpha),         0.0      ],
-      [sin(alpha)*cos(eta), cos(alpha)*cos(eta), -sin(eta)],
-      [sin(alpha)*sin(eta), cos(alpha)*sin(eta), cos(eta) ]
+    return torch.stack([
+        torch.stack([cos(alpha), -sin(alpha), torch.tensor(0.0, dtype=alpha.dtype)]),
+        torch.stack([sin(alpha) * cos(eta), cos(alpha) * cos(eta), -sin(eta)]),
+        torch.stack([sin(alpha) * sin(eta), cos(alpha) * sin(eta), cos(eta)])
     ])
 
   @staticmethod
@@ -418,41 +401,6 @@ class KentDistribution(object):
       
   def __repr__(self):
     return "kent(%s, %s, %s, %s, %s)" % (self.alpha, self.eta, self.psi, self.kappa, self.beta)
-      
-def kent_me(xs):
-  """Generates and returns a KentDistribution based on a moment estimation."""
-  lenxs = len(xs)
-  xbar = torch.mean(xs, 0) # average direction of samples from origin
-  S = torch.mean(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
-  
-  gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-  alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-  
-  H = KentDistribution.create_matrix_H(alpha, eta)
-  Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-  B = MMul(Ht, MMul(S, H))
-  
-  eigvals, eigvects = eig(B[1:,1:])
-  eigvals = real(eigvals)
-  if eigvals[0] < eigvals[1]:
-    eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-    eigvects = eigvects[:,::-1]
-  K = diag([1.0, 1.0, 1.0])
-  K[1:,1:] = eigvects
-  
-  G = MMul(H, K)
-  Gt = torch.transpose(G, 0, 1)
-  T = MMul(Gt, MMul(S, G))
-  
-  r1 = norm(xbar)
-  t22, t33 = T[1, 1], T[2, 2]
-  r2 = t22 - t33
-  
-  # kappa and beta can be estimated but may not lie outside their permitted ranges
-  min_kappa = KentDistribution.minimum_value_for_kappa
-  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
-  beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-  return kent4(G, kappa, beta)
 
 class Rotation:
     @staticmethod
@@ -491,30 +439,26 @@ def get_me_matrix_torch(xs):
   return S, xbar
 
 def kent_me_matrix_torch(S_torch, xbar_torch):
+    # Ensure consistent data types
+    S_torch = S_torch.double()
+    xbar_torch = xbar_torch.double()
+
     gamma1 = xbar_torch / norm(xbar_torch, axis=0)  # Ensure axis is specified
     alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
     
     H = KentDistribution.create_matrix_H(alpha, eta)
     Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-    B = MMul(Ht, MMul(S_torch, H))
-    print('B[1:,1:]', B[1:,1:])
+    B = MMul(Ht, MMul(S_torch, H)) 
     
-    eigvals, eigvects = torch.linalg.eig(B[1:, 1:])
-    eigvals = eigvals.real  # Ensure eigenvalues are real
+    alpha_hat = 0.5 * torch.atan2(2 * B[1, 2], B[1, 1] - B[2, 2])
 
-    print('eigvals', eigvals)
-    print('eigvects', eigvects)
-    # Sort eigenvalues and eigenvectors
-    if eigvals[0] < eigvals[1]:
-        eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-        eigvects = torch.flip(eigvects, dims=[1])  # Reverse the order of columns
+    # Use operations that maintain requires_grad
+    K = torch.stack([
+        torch.tensor([1, 0, 0], dtype=torch.float64),
+        torch.stack([torch.tensor(0, dtype=torch.float64), torch.cos(alpha_hat), -torch.sin(alpha_hat)]),
+        torch.stack([torch.tensor(0, dtype=torch.float64), torch.sin(alpha_hat), torch.cos(alpha_hat)])
+    ])
 
-    # Create the K matrix
-    K = torch.diag(torch.tensor([1.0, 1.0, 1.0]))
-    K[1:, 1:] = eigvects
-    
-    #print('K ===', K )
-    
     G = MMul(H, K)
     Gt = torch.transpose(G, 0, 1)
     T = MMul(Gt, MMul(S_torch, G))
@@ -523,8 +467,128 @@ def kent_me_matrix_torch(S_torch, xbar_torch):
     t22, t33 = T[1, 1], T[2, 2]
     r2 = t22 - t33
     
-    # kappa and beta can be estimated but may not lie outside their permitted ranges
-    min_kappa = KentDistribution.minimum_value_for_kappa
-    kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
+    min_kappa = 1E-6
+    kappa = torch.max(torch.tensor(min_kappa), 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
     beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-    return kent4(G, kappa, beta)
+    
+    '''print("S_torch.requires_grad:", S_torch.requires_grad)
+    print("xbar_torch.requires_grad:", xbar_torch.requires_grad)
+    print("gamma1.requires_grad:", gamma1.requires_grad)
+    print("alpha.requires_grad:", alpha.requires_grad)
+    print("eta.requires_grad:", eta.requires_grad)
+    print("H.requires_grad:", H.requires_grad)
+    print("Ht.requires_grad:", Ht.requires_grad)
+    print("B.requires_grad:", B.requires_grad)
+    print("alpha_hat.requires_grad:", alpha_hat.requires_grad)
+    print("K.requires_grad:", K.requires_grad)
+    print("G.requires_grad:", G.requires_grad)
+    print("Gt.requires_grad:", Gt.requires_grad)
+    print("T.requires_grad:", T.requires_grad)
+    print("r1.requires_grad:", r1.requires_grad)
+    print("t22.requires_grad:", t22.requires_grad)
+    print("t33.requires_grad:", t33.requires_grad)
+    print("r2.requires_grad:", r2.requires_grad)
+    #print("min_kappa.requires_grad:", min_kappa.requires_grad)
+    print("kappa.requires_grad:", kappa.requires_grad)
+    print("beta.requires_grad:", beta.requires_grad)'''
+    
+    gamma1 = G[:,0]
+    gamma2 = G[:,1]
+    gamma3 = G[:,2]
+  
+    psi, alpha, eta = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
+
+    return torch.stack([psi, alpha, eta, kappa, beta])
+  
+  
+def deg2kent_torch(annotations, h=960, w=1920):
+    results = torch.empty((0, 5), device=annotations.device)  # Initialize an empty tensor
+    for annotation in annotations:
+        with torch.autograd.detect_anomaly():
+            Xs = sampleFromAnnotation_deg(annotation, (h, w))
+            Xs.backward(torch.ones_like(Xs))  # Provide gradient argument
+        S, xbar = get_me_matrix_torch(Xs)
+        k = kent_me_matrix_torch(S, xbar)
+        results = torch.cat((results, k.unsqueeze(0)), dim=0)  # Concatenate each k tensor
+    return results
+
+def gradient_check():
+    # Create mock inputs with requires_grad=True
+    S_torch = torch.randn(3, 3, dtype=torch.float64, requires_grad=True)
+    xbar_torch = torch.randn(3, dtype=torch.float64, requires_grad=True)
+
+    # Call the function
+    result = kent_me_matrix_torch(S_torch, xbar_torch)
+
+    # Create a dummy loss
+    loss = result.sum()
+
+    # Backpropagate
+    loss.backward(retain_graph=True)
+
+    # Check gradients
+    print("Gradients for S_torch:", S_torch.grad)
+    print("Gradients for xbar_torch:", xbar_torch.grad)
+
+    # Gradient magnitude check
+    assert S_torch.grad is not None, "Gradient for S_torch is None"
+    assert xbar_torch.grad is not None, "Gradient for xbar_torch is None"
+    assert torch.all(S_torch.grad != 0), "Gradient for S_torch is zero"
+    assert torch.all(xbar_torch.grad != 0), "Gradient for xbar_torch is zero"
+
+    # Gradient consistency check
+    S_torch.grad.zero_()
+    xbar_torch.grad.zero_()
+    loss.backward(retain_graph=True)
+    assert torch.allclose(S_torch.grad, S_torch.grad), "Inconsistent gradients for S_torch"
+    assert torch.allclose(xbar_torch.grad, xbar_torch.grad), "Inconsistent gradients for xbar_torch"
+
+    # Finite differences gradient check
+    epsilon = 1e-5
+    S_torch_fd = S_torch.clone().detach().requires_grad_(True)
+    xbar_torch_fd = xbar_torch.clone().detach().requires_grad_(True)
+    result_fd = kent_me_matrix_torch(S_torch_fd, xbar_torch_fd)
+    loss_fd = result_fd.sum()
+    loss_fd.backward(retain_graph=True)
+
+    numerical_grad_S = torch.zeros_like(S_torch)
+    numerical_grad_xbar = torch.zeros_like(xbar_torch)
+
+    for i in range(S_torch.numel()):
+        S_torch_flat = S_torch.view(-1).clone().detach().requires_grad_(True)
+        S_torch_perturbed_pos = S_torch_flat.clone()
+        S_torch_perturbed_pos[i] += epsilon
+        S_torch_perturbed_pos = S_torch_perturbed_pos.view(S_torch.size())
+        result_pos = kent_me_matrix_torch(S_torch_perturbed_pos, xbar_torch).sum()
+        
+        S_torch_perturbed_neg = S_torch_flat.clone()
+        S_torch_perturbed_neg[i] -= epsilon
+        S_torch_perturbed_neg = S_torch_perturbed_neg.view(S_torch.size())
+        result_neg = kent_me_matrix_torch(S_torch_perturbed_neg, xbar_torch).sum()
+        
+        numerical_grad = (result_pos - result_neg) / (2 * epsilon)
+        numerical_grad_S.view(-1)[i] = numerical_grad
+
+    for i in range(xbar_torch.numel()):
+        xbar_torch_flat = xbar_torch.view(-1).clone().detach().requires_grad_(True)
+        xbar_torch_perturbed_pos = xbar_torch_flat.clone()
+        xbar_torch_perturbed_pos[i] += epsilon
+        xbar_torch_perturbed_pos = xbar_torch_perturbed_pos.view(xbar_torch.size())
+        result_pos = kent_me_matrix_torch(S_torch, xbar_torch_perturbed_pos).sum()
+        
+        xbar_torch_perturbed_neg = xbar_torch_flat.clone()
+        xbar_torch_perturbed_neg[i] -= epsilon
+        xbar_torch_perturbed_neg = xbar_torch_perturbed_neg.view(xbar_torch.size())
+        result_neg = kent_me_matrix_torch(S_torch, xbar_torch_perturbed_neg).sum()
+        
+        numerical_grad = (result_pos - result_neg) / (2 * epsilon)
+        numerical_grad_xbar.view(-1)[i] = numerical_grad
+
+    # Compare numerical gradients with analytical gradients
+    assert torch.allclose(S_torch.grad, numerical_grad_S, atol=1e-4), "Gradient check failed for S_torch"
+    assert torch.allclose(xbar_torch.grad, numerical_grad_xbar, atol=1e-4), "Gradient check failed for xbar_torch"
+
+    print("Numerical gradients match analytical gradients.")
+
+if __name__ == "__main__":
+    gradient_check()

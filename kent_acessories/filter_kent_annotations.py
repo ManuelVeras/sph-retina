@@ -79,6 +79,9 @@ def main():
         original_bbox = obj['bbox'].copy()
         original_area = obj['area']
 
+        # Print the original annotation
+        print(f"Original annotation: {obj}")
+
         # Convert Decimal to float if needed
         obj['bbox'] = [float(value) if isinstance(value, Decimal) else value for value in obj['bbox']]
         obj['area'] = float(obj['area']) if isinstance(obj['area'], Decimal) else obj['area']
@@ -92,6 +95,9 @@ def main():
         obj['bbox'] = transform_bbox(torch.tensor(obj['bbox']))[0]
         logging.info(f"Transformed bbox from {original_bbox} to {obj['bbox']}")
         
+        # Print the new annotation
+        print(f"New annotation: {obj}")
+
         if not filter_low_kappas(obj):
             logging.info(f"Filtered out due to low kappa: {obj['bbox']}")
             continue

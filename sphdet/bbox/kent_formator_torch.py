@@ -31,7 +31,6 @@ from numpy.random import seed, uniform, randint
 import warnings
 import pdb
 from efficient_sample_from_annotation import sampleFromAnnotation_deg
-from kent_formator_torch_simple import kent_me_matrix_torch, get_me_matrix_torch
 
 
 #import sys
@@ -57,6 +56,15 @@ def __generate_arbitrary_orthogonal_unit_vector(x):
   v = [v1, v2, v3][argmax([v1n, v2n, v3n])]
   return v/norm(v)
 
+
+
+def spherical_coordinates_to_gammas(alpha, eta, psi):
+    Gamma = KentDistribution.create_matrix_Gamma(alpha, eta, psi)
+    gamma1 = Gamma[:,0]
+    gamma2 = Gamma[:,1]
+    gamma3 = Gamma[:,2]    
+    return gamma1, gamma2, gamma3
+
 def kent(alpha, eta, psi, kappa, beta):
   """
   Generates the Kent distribution based on the spherical coordinates alpha, eta, psi
@@ -72,10 +80,17 @@ def kent2(gamma1, gamma2, gamma3, kappa, beta):
   gamma2 and gamma3, with the concentration parameter kappa and the ovalness beta
   """
   #WARNING: comentei os asserts
-  #assert abs(inner(gamma1, gamma2)) < 1E-8 #1E-10
-  #assert abs(inner(gamma2, gamma3)) < 1E-8 #1E-10
-  #assert abs(inner(gamma3, gamma1)) < 1E-8 #1E-10
+  #assert abs(torch.dot(gamma1, gamma2)) < 1E-8 #1E-10
+  #assert abs(torch.dot(gamma2, gamma3)) < 1E-8 #1E-10
+  #assert abs(torch.dot(gamma3, gamma1)) < 1E-8 #1E-10
   return KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
+
+def gammas_to_spherical_coordinates(gamma1, gamma2):
+    alpha, eta = gamma1_to_spherical_coordinates(gamma1)
+    Ht = create_matrix_Ht(alpha, eta)
+    u = torch.matmul(Ht, gamma2.view(3, 1))  # Use torch.matmul and view for reshaping
+    psi = torch.atan2(u[2][0], u[1][0])  # Use torch.atan2
+    return alpha, eta, psi
     
 def kent3(A, B):
   """
@@ -85,14 +100,14 @@ def kent3(A, B):
   B may have length zero however. If so, then an arbitrary value for gamma2
   (orthogonal to gamma1) is chosen
   """
-  kappa = norm(A)
-  beta = norm(B)
+  kappa = torch.norm(A)
+  beta = torch.norm(B)
   gamma1 = A/kappa
   if beta == 0.0:
     gamma2 = __generate_arbitrary_orthogonal_unit_vector(gamma1)
   else:
     gamma2 = B/beta
-  alpha, eta, psi = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
+  alpha, eta, psi = gammas_to_spherical_coordinates(gamma1, gamma2)
   gamma1, gamma2, gamma3 = KentDistribution.spherical_coordinates_to_gammas(alpha, eta, psi)
   return KentDistribution(gamma1, gamma2, gamma3, kappa, beta)
   
@@ -100,17 +115,15 @@ def kent4(Gamma, kappa, beta):
   """
   Generates the kent distribution
   """
-  gamma1 = Gamma[:,0]
-  gamma2 = Gamma[:,1]
-  gamma3 = Gamma[:,2]
-  #print('gamma1 gamma2 gamma3', gamma1, gamma2, gamma3)
+  gamma1 = Gamma[:, 0]
+  gamma2 = Gamma[:, 1]
+  gamma3 = Gamma[:, 2]
   return kent2(gamma1, gamma2, gamma3, kappa, beta)
   
 class KentDistribution(object):
   minimum_value_for_kappa = 1E-6
   @staticmethod
   def create_matrix_H(alpha, eta):
-    #print('alpha eta', alpha, eta)
     return array([
       [cos(alpha),          -sin(alpha),         0.0      ],
       [sin(alpha)*cos(eta), cos(alpha)*cos(eta), -sin(eta)],
@@ -135,38 +148,19 @@ class KentDistribution(object):
   
   @staticmethod
   def create_matrix_Gamma(alpha, eta, psi):
-    H = KentDistribution.create_matrix_H(alpha, eta)
-    K = KentDistribution.create_matrix_K(psi)
+    H = create_matrix_H(alpha, eta)
+    K = create_matrix_K(psi)
     return MMul(H, K)
   
   @staticmethod
   def create_matrix_Gammat(alpha, eta, psi):
     return transpose(KentDistribution.create_matrix_Gamma(alpha, eta, psi))
-  
-  @staticmethod
-  def spherical_coordinates_to_gammas(alpha, eta, psi):
-    Gamma = KentDistribution.create_matrix_Gamma(alpha, eta, psi)
-    gamma1 = Gamma[:,0]
-    gamma2 = Gamma[:,1]
-    gamma3 = Gamma[:,2]    
-    return gamma1, gamma2, gamma3
 
   @staticmethod
   def gamma1_to_spherical_coordinates(gamma1):
     alpha = arccos(gamma1[0])
-    #print('alpha', alpha)
     eta = arctan2(gamma1[2], gamma1[1])
-    #print('np division', gamma1[2], gamma1[1])
-    #print('eta', eta)
     return alpha, eta
-
-  @staticmethod
-  def gammas_to_spherical_coordinates(gamma1, gamma2):
-    alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-    Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-    u = MMul(Ht, reshape(gamma2, (3, 1)))
-    psi = arctan2(u[2][0], u[1][0])
-    return alpha, eta, psi
 
   
   def __init__(self, gamma1, gamma2, gamma3, kappa, beta):
@@ -175,6 +169,10 @@ class KentDistribution(object):
     self.gamma3 = array(gamma3, dtype=float64)
     self.kappa = float(kappa)
     self.beta = float(beta)
+
+    #print(gamma1)
+    #print(gamma2)
+    #print(gamma3)
     
     self.alpha, self.eta, self.psi = KentDistribution.gammas_to_spherical_coordinates(self.gamma1, self.gamma2)
     
@@ -446,44 +444,12 @@ class KentDistribution(object):
       
   def __repr__(self):
     return "kent(%s, %s, %s, %s, %s)" % (self.alpha, self.eta, self.psi, self.kappa, self.beta)
-      
-def kent_me(xs):
-  """Generates and returns a KentDistribution based on a moment estimation."""
-  lenxs = len(xs)
-  xbar = average(xs, 0) # average direction of samples from origin
-  S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
   
-  gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-  alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
+def gamma1_to_spherical_coordinates(gamma1):
+    alpha = torch.acos(gamma1[0])
+    eta = torch.atan2(gamma1[2], gamma1[1])
+    return alpha, eta  
   
-  H = KentDistribution.create_matrix_H(alpha, eta)
-  Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-  B = MMul(Ht, MMul(S, H))
-  
-  eigvals, eigvects = eig(B[1:,1:])
-  eigvals = real(eigvals)
-  if eigvals[0] < eigvals[1]:
-    eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-    eigvects = eigvects[:,::-1]
-  K = diag([1.0, 1.0, 1.0])
-  K[1:,1:] = eigvects
-  
-  G = MMul(H, K)
-  Gt = transpose(G)
-  T = MMul(Gt, MMul(S, G))
-  
-  r1 = norm(xbar)
-  t22, t33 = T[1, 1], T[2, 2]
-  r2 = t22 - t33
-  
-  # kappa and beta can be estimated but may not lie outside their permitted ranges
-  min_kappa = KentDistribution.minimum_value_for_kappa
-  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
-  beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-  #k = kent4(G, kappa, beta) 
-  #k_par = [k.alpha, k.eta, k.psi, k.kappa, k.beta]
-  return kent4(G, kappa, beta)
-
 class Rotation:
     @staticmethod
     def Rx(alpha):
@@ -521,66 +487,50 @@ def get_me_matrix(xs):
   S = average(xs.reshape((lenxs, 3, 1))*xs.reshape((lenxs, 1, 3)), 0) # dispersion (or covariance) matrix around origin
   return S, xbar
 
+def create_matrix_H(alpha, eta):
+    H = torch.stack([
+      torch.stack([torch.cos(alpha), -torch.sin(alpha), torch.zeros_like(alpha)]),
+      torch.stack([torch.sin(alpha)*torch.cos(eta), torch.cos(alpha)*torch.cos(eta), -torch.sin(eta)]),
+      torch.stack([torch.sin(alpha)*torch.sin(eta), torch.cos(alpha)*torch.sin(eta), torch.cos(eta)])
+    ])
+    return H
+
+def create_matrix_Ht(alpha, eta):
+    return torch.transpose(create_matrix_H(alpha, eta), 0, 1)
+
 def kent_me_matrix(S, xbar):
   """Generates and returns a KentDistribution based on a moment estimation."""  
-  gamma1 = xbar/norm(xbar) # has unit length and is in the same direction and parallel to xbar
-  #print('np gamma1', gamma1)
-  alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
   
-  H = KentDistribution.create_matrix_H(alpha, eta)
-  Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-  B = MMul(Ht, MMul(S, H))
-  #('B[1:,1:]', B[1:,1:])
-  #print('H', H)
+  #Nao entendo isso
+  gamma1 = xbar / torch.norm(xbar) # has unit length and is in the same direction and parallel to xbar
+  alpha, eta = gamma1_to_spherical_coordinates(gamma1)
   
+  H = create_matrix_H(alpha, eta)
+  Ht = create_matrix_Ht(alpha, eta)
+  B = torch.mm(Ht, torch.mm(S, H))
   
-  eigvals, eigvects = eig(B[1:,1:])
-  eigvals = real(eigvals)
+  eigvals, eigvects = torch.eig(B[1:,1:])
   
+  eigvals = torch.real(eigvals)
   if eigvals[0] < eigvals[1]:
     eigvals[0], eigvals[1] = eigvals[1], eigvals[0]
-    eigvects = eigvects[:,::-1]
+    eigvects = eigvects[:, torch.arange(eigvects.size(1)-1, -1)]
+  K = torch.diag(torch.ones(3))
+  K[1:, 1:] = eigvects
   
-  K = diag([1.0, 1.0, 1.0])
-  K[1:,1:] = eigvects
+  G = torch.mm(H, K)
+  Gt = torch.transpose(G, 0, 1)
+  T = torch.mm(Gt, torch.mm(S, G))
   
-  #print('H K =======', H, K )
-  
-  G = MMul(H, K)
-  Gt = transpose(G)
-  T = MMul(Gt, MMul(S, G))
-  r1 = norm(xbar)
+  print('T', T)
+  r1 = torch.norm(xbar)
   t22, t33 = T[1, 1], T[2, 2]
   r2 = t22 - t33
   
   # kappa and beta can be estimated but may not lie outside their permitted ranges
-  min_kappa = KentDistribution.minimum_value_for_kappa
-  kappa = max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
+  min_kappa = 1E-6
+  kappa = torch.max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
   beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-    #k = kent4(G, kappa, beta) 
+  #k = kent4(G, kappa, beta) 
   #k_par = [k.alpha, k.eta, k.psi, k.kappa, k.beta]
   return kent4(G, kappa, beta) 
-
-#Used in get_kent_annotations.py
-def deg2kent_single(annotations, h=960, w=1920):
-  results = []
-  Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  S, xbar = get_me_matrix(Xs)
-  k = kent_me_matrix(S, xbar)
-  results.append([k.psi+np.pi/2, k.alpha, k.eta+np.pi, k.kappa, k.beta])
-  #results.append([k.psi+np.pi/2, k.alpha, k.eta, k.kappa, k.beta])
-  return torch.tensor(results)
-
-def deg2kent_single_torch(annotations, h=960, w=1920):
-  results = []
-  Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  S_torch, xbar_torch = get_me_matrix(Xs)
-  k_torch = kent_me_matrix_torch(torch.tensor(S_torch), torch.tensor(xbar_torch))
-  
-  
-  S_non_torch, xbar_non_torch = get_me_matrix(Xs)
-  k_non_torch = kent_me_matrix(S_non_torch, xbar_non_torch)
-  
-  print('k_torch', k_torch)
-  results.append([k_non_torch.psi+np.pi/2, k_non_torch.alpha, k_non_torch.eta+np.pi, k_non_torch.kappa, k_non_torch.beta])
-  return torch.tensor(results)

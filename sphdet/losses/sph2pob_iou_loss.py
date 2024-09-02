@@ -185,8 +185,6 @@ class SphIoULoss(nn.Module):
         self.eps = eps
         self.reduction = reduction
         self.loss_weight = loss_weight
-        
-        pdb.set_trace()
 
         if iou_calculator == 'sph':
             self.iou_calculator = sph_iou
