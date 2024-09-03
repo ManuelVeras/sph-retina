@@ -30,8 +30,8 @@ import time
 from numpy.random import seed, uniform, randint	
 import warnings
 import pdb
-from efficient_sample_from_annotation import sampleFromAnnotation_deg
-from kent_formator_torch_simple import kent_me_matrix_torch, get_me_matrix_torch
+from sphdet.bbox.sampler.efficient_sample_from_annotation import sampleFromAnnotation_deg
+from sphdet.bbox.kent_formator_torch_simple import kent_me_matrix_torch, get_me_matrix_torch
 
 
 #import sys
@@ -562,7 +562,7 @@ def kent_me_matrix(S, xbar):
   return kent4(G, kappa, beta) 
 
 #Used in get_kent_annotations.py
-def deg2kent_single(annotations, h=960, w=1920):
+'''def deg2kent_single(annotations, h=960, w=1920):
   results = []
   Xs = sampleFromAnnotation_deg(annotations, (h, w))
   S, xbar = get_me_matrix(Xs)
@@ -570,17 +570,34 @@ def deg2kent_single(annotations, h=960, w=1920):
   results.append([k.psi+np.pi/2, k.alpha, k.eta+np.pi, k.kappa, k.beta])
   #results.append([k.psi+np.pi/2, k.alpha, k.eta, k.kappa, k.beta])
   return torch.tensor(results)
-
-def deg2kent_single_torch(annotations, h=960, w=1920):
+'''
+def deg2kent_single(annotations, h=960, w=1920):
   results = []
   Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  S_torch, xbar_torch = get_me_matrix(Xs)
-  k_torch = kent_me_matrix_torch(torch.tensor(S_torch), torch.tensor(xbar_torch))
   
+  # Ensure Xs is a torch tensor and requires gradients
+  Xs_torch = torch.tensor(Xs, requires_grad=True)
   
-  S_non_torch, xbar_non_torch = get_me_matrix(Xs)
-  k_non_torch = kent_me_matrix(S_non_torch, xbar_non_torch)
+  # Use the torch-based functions
+  S_torch, xbar_torch = get_me_matrix_torch(Xs_torch)
+  k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
   
-  print('k_torch', k_torch)
-  results.append([k_non_torch.psi+np.pi/2, k_non_torch.alpha, k_non_torch.eta+np.pi, k_non_torch.kappa, k_non_torch.beta])
-  return torch.tensor(results)
+  # Check if the tensors require gradients
+  assert S_torch.requires_grad, "S_torch does not support backpropagation"
+  assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
+  assert k_torch.requires_grad, "k_torch does not support backpropagation"
+  
+  return k_torch
+
+
+def deg2kent_single_torch(annotations, h=960, w=1920):
+  Xs = sampleFromAnnotation_deg(annotations, (h, w))
+  S_torch, xbar_torch = get_me_matrix_torch(Xs)
+  k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
+  
+  # Check if the tensors require gradients
+  assert S_torch.requires_grad, "S_torch does not support backpropagation"
+  assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
+  assert k_torch.requires_grad, "k_torch does not support backpropagation"
+    
+  return k_torch

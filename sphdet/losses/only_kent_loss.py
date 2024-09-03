@@ -441,3 +441,9 @@ class OnlyKentLoss(nn.Module):
         kent_target = SphBox2KentTransform()(target)
         pdb.set_trace()
         return kent_loss(kent_pred, kent_target)
+    
+if __name__ == "__main__":
+    pred = torch.tensor([350.0, 0.0, 20.0, 20.0], dtype=torch.float32, requires_grad=True)
+    target = torch.tensor([350.0, 0.0, 20.0, 20.0], dtype=torch.float32, requires_grad=True)
+    loss = OnlyKentLoss()(pred, target)
+    print(loss)

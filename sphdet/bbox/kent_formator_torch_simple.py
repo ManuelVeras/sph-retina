@@ -18,7 +18,7 @@ from torch.distributions import Uniform, Normal
 import sys
 import warnings
 import pdb
-from efficient_sample_from_annotation import sampleFromAnnotation_deg
+from .sampler.efficient_sample_from_annotation import sampleFromAnnotation_deg
 
 torch.autograd.set_detect_anomaly(True)  # Enable anomaly detection
 
@@ -504,10 +504,17 @@ def kent_me_matrix_torch(S_torch, xbar_torch):
 def deg2kent_torch(annotations, h=960, w=1920):
     results = torch.empty((0, 5), device=annotations.device)  # Initialize an empty tensor
     for annotation in annotations:
-        with torch.autograd.detect_anomaly():
-            Xs = sampleFromAnnotation_deg(annotation, (h, w))
-            Xs.backward(torch.ones_like(Xs))  # Provide gradient argument
-        S, xbar = get_me_matrix_torch(Xs)
+        # Check if annotation is a 0-d tensor
+        if annotation.dim() == 0:
+            # If it's a 0-d tensor, unsqueeze it to make it 1-d
+            annotation = annotation.unsqueeze(0)
+        
+        # Now check if it's a 1-d tensor (single annotation)
+        if annotation.dim() == 1:
+            # If it's a single annotation, unsqueeze to make it 2-d
+            annotation = annotation.unsqueeze(0)
+        
+        S, xbar = get_me_matrix_torch(annotation)
         k = kent_me_matrix_torch(S, xbar)
         results = torch.cat((results, k.unsqueeze(0)), dim=0)  # Concatenate each k tensor
     return results

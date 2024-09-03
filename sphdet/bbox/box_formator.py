@@ -3,9 +3,9 @@ import math
 import torch
 import sys
 import os
-from .kent_formator import deg2kent, deg2kent_approx
-from .kent_formator_torch_simple import deg2kent_torch
-
+#from sphdet.bbox.kent_formator import deg2kent, deg2kent_approx
+from sphdet.bbox.kent_formator_torch_simple import deg2kent_torch
+from kent_formator import deg2kent_single_torch
 from scipy.special import gamma as gamma_fun
 from scipy.special import iv as modified_bessel_2ndkind
 from scipy.special import ivp as modified_bessel_2ndkind_derivative
@@ -95,7 +95,7 @@ def _pix2sph_box_transform(boxes, img_size):
 
 def _sph_box2kent_transform(boxes, img_size):
     img_h, img_w = img_size
-    return deg2kent_torch(boxes, img_h, img_w)
+    return deg2kent_single_torch(boxes, img_h, img_w)
 
 
 def _sph_box2kent_transform_approximation(boxes, img_size):
