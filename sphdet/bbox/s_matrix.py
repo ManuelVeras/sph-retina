@@ -1,9 +1,11 @@
 import torch
 import sys
+import pdb
 from sphdet.bbox.sampler.efficient_sample_from_annotation import sampleFromAnnotation_deg
 from sphdet.bbox.kent_formator_torch_simple import kent_me_matrix_torch, get_me_matrix_torch
 
 def deg2kent_single_torch(annotations, h=960, w=1920):
+  pdb.set_trace()
   Xs = sampleFromAnnotation_deg(annotations, (h, w))
   S_torch, xbar_torch = get_me_matrix_torch(Xs)
   k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
@@ -18,24 +20,7 @@ def deg2kent_single_torch(annotations, h=960, w=1920):
 
 if __name__=='__main__':
     # Create a leaf tensor with requires_grad=True
-    annotations = torch.tensor([350.0, 0.0, 20.0, 20.0], dtype=torch.float32, requires_grad=True)
-    
-    '''# Define a hook to print gradients
-    def print_grad(grad):
-        print("Gradient:", grad)
-    
-    # Register the hook
-    annotations.register_hook(print_grad)
-    
-    # Ensure sampleFromAnnotation_deg returns a tensor that requires grad
-    teste = sampleFromAnnotation_deg(annotations, (480, 960))
-    if not teste.requires_grad:
-        teste = teste.detach().requires_grad_(True)
-    
-    loss = teste.sum()
-    loss.backward()
-    print("Annotations Grad:", annotations.grad)
-    #sys.exit()'''
+    annotations = torch.tensor([350.0, 0.0, 23.0, 20.0], dtype=torch.float32, requires_grad=True)
 
     # Call the function
     kent = deg2kent_single_torch(annotations, 480, 960)

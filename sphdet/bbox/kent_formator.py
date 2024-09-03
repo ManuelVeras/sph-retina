@@ -484,19 +484,6 @@ def kent_me(xs):
   #k_par = [k.alpha, k.eta, k.psi, k.kappa, k.beta]
   return kent4(G, kappa, beta)
 
-class Rotation:
-    @staticmethod
-    def Rx(alpha):
-        return asarray([[1, 0, 0], [0, cos(alpha), -sin(alpha)], [0, sin(alpha), cos(alpha)]])
-
-    @staticmethod
-    def Ry(beta):
-        return asarray([[cos(beta), 0, sin(beta)], [0, 1, 0], [-sin(beta), 0, cos(beta)]])
-
-    @staticmethod
-    def Rz(gamma):
-        return asarray([[cos(gamma), -sin(gamma), 0], [sin(gamma), cos(gamma), 0], [0, 0, 1]])
-
 def projectEquirectangular2Sphere(u, w, h):
    #NOTE: eta and alpha differ from usual definition
    alpha = u[:,1] * (pi/float(h))
@@ -560,44 +547,3 @@ def kent_me_matrix(S, xbar):
     #k = kent4(G, kappa, beta) 
   #k_par = [k.alpha, k.eta, k.psi, k.kappa, k.beta]
   return kent4(G, kappa, beta) 
-
-#Used in get_kent_annotations.py
-'''def deg2kent_single(annotations, h=960, w=1920):
-  results = []
-  Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  S, xbar = get_me_matrix(Xs)
-  k = kent_me_matrix(S, xbar)
-  results.append([k.psi+np.pi/2, k.alpha, k.eta+np.pi, k.kappa, k.beta])
-  #results.append([k.psi+np.pi/2, k.alpha, k.eta, k.kappa, k.beta])
-  return torch.tensor(results)
-'''
-def deg2kent_single(annotations, h=960, w=1920):
-  results = []
-  Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  
-  # Ensure Xs is a torch tensor and requires gradients
-  Xs_torch = torch.tensor(Xs, requires_grad=True)
-  
-  # Use the torch-based functions
-  S_torch, xbar_torch = get_me_matrix_torch(Xs_torch)
-  k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
-  
-  # Check if the tensors require gradients
-  assert S_torch.requires_grad, "S_torch does not support backpropagation"
-  assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
-  assert k_torch.requires_grad, "k_torch does not support backpropagation"
-  
-  return k_torch
-
-
-def deg2kent_single_torch(annotations, h=960, w=1920):
-  Xs = sampleFromAnnotation_deg(annotations, (h, w))
-  S_torch, xbar_torch = get_me_matrix_torch(Xs)
-  k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
-  
-  # Check if the tensors require gradients
-  assert S_torch.requires_grad, "S_torch does not support backpropagation"
-  assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
-  assert k_torch.requires_grad, "k_torch does not support backpropagation"
-    
-  return k_torch

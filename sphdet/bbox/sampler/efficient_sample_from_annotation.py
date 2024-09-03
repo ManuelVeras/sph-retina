@@ -1,32 +1,4 @@
 import torch
-import numpy as np
-from numpy.linalg import norm
-from numpy import *
-
-class Rotation:
-    @staticmethod
-    def Rx(alpha):
-        return torch.stack([
-            torch.tensor([1, 0, 0], device=alpha.device),
-            torch.tensor([0, torch.cos(alpha), -torch.sin(alpha)], device=alpha.device),
-            torch.tensor([0, torch.sin(alpha), torch.cos(alpha)], device=alpha.device)
-        ])
-
-    @staticmethod
-    def Ry(beta):
-        return torch.stack([
-            torch.tensor([torch.cos(beta), 0, torch.sin(beta)], device=beta.device),
-            torch.tensor([0, 1, 0], device=beta.device),
-            torch.tensor([-torch.sin(beta), 0, torch.cos(beta)], device=beta.device)
-        ])
-
-    @staticmethod
-    def Rz(gamma):
-        return torch.stack([
-            torch.tensor([torch.cos(gamma), -torch.sin(gamma), 0], device=gamma.device),
-            torch.tensor([torch.sin(gamma), torch.cos(gamma), 0], device=gamma.device),
-            torch.tensor([0, 0, 1], device=gamma.device)
-        ])
 
 def projectEquirectangular2Sphere(u, w, h):
     # Ensure the function is differentiable
@@ -95,10 +67,4 @@ def sampleFromAnnotation_deg(annotation, shape):
 
     u = (eta / (2 * torch.pi) + 1. / 2.) * w
     v = h - (-alpha / torch.pi + 1. / 2.) * h
-    #return torch.vstack((u, v)).T
     return projectEquirectangular2Sphere(torch.vstack((u, v)).T, w, h)
-
-def norm_stale(x, axis=None):
-  if isinstance(x, list) or isinstance(x, tuple):
-    x = array(x)
-  return sqrt(sum(x*x, axis=axis))  
