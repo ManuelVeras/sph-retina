@@ -71,10 +71,12 @@ class KentDistribution(object):
   minimum_value_for_kappa = 1E-6
   @staticmethod
   def create_matrix_H(alpha, eta):
+    device = alpha.device
+    dtype = alpha.dtype
     return torch.stack([
-        torch.stack([cos(alpha), -sin(alpha), torch.tensor(0.0, dtype=alpha.dtype)]),
-        torch.stack([sin(alpha) * cos(eta), cos(alpha) * cos(eta), -sin(eta)]),
-        torch.stack([sin(alpha) * sin(eta), cos(alpha) * sin(eta), cos(eta)])
+        torch.stack([torch.cos(alpha), -torch.sin(alpha), torch.tensor(0.0, dtype=dtype, device=device)]),
+        torch.stack([torch.sin(alpha) * torch.cos(eta), torch.cos(alpha) * torch.cos(eta), -torch.sin(eta)]),
+        torch.stack([torch.sin(alpha) * torch.sin(eta), torch.cos(alpha) * torch.sin(eta), torch.cos(eta)])
     ])
 
   @staticmethod
@@ -422,9 +424,11 @@ def get_me_matrix_torch(xs):
   return S, xbar
 
 def kent_me_matrix_torch(S_torch, xbar_torch):
-    # Ensure consistent data types
-    S_torch = S_torch.double()
-    xbar_torch = xbar_torch.double()
+    # Ensure consistent data types and devices
+    device = S_torch.device
+    dtype = S_torch.dtype
+    S_torch = S_torch.to(device=device, dtype=dtype)
+    xbar_torch = xbar_torch.to(device=device, dtype=dtype)
 
     gamma1 = xbar_torch / norm(xbar_torch, axis=0)  # Ensure axis is specified
     alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
@@ -437,9 +441,9 @@ def kent_me_matrix_torch(S_torch, xbar_torch):
 
     # Use operations that maintain requires_grad
     K = torch.stack([
-        torch.tensor([1, 0, 0], dtype=torch.float64),
-        torch.stack([torch.tensor(0, dtype=torch.float64), torch.cos(alpha_hat), -torch.sin(alpha_hat)]),
-        torch.stack([torch.tensor(0, dtype=torch.float64), torch.sin(alpha_hat), torch.cos(alpha_hat)])
+        torch.tensor([1, 0, 0], dtype=dtype, device=device),
+        torch.stack([torch.tensor(0, dtype=dtype, device=device), torch.cos(alpha_hat), -torch.sin(alpha_hat)]),
+        torch.stack([torch.tensor(0, dtype=dtype, device=device), torch.sin(alpha_hat), torch.cos(alpha_hat)])
     ])
 
     G = MMul(H, K)
@@ -450,30 +454,9 @@ def kent_me_matrix_torch(S_torch, xbar_torch):
     t22, t33 = T[1, 1], T[2, 2]
     r2 = t22 - t33
     
-    min_kappa = 1E-6
-    kappa = torch.max(torch.tensor(min_kappa), 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
+    min_kappa = torch.tensor(1E-6, dtype=dtype, device=device)
+    kappa = torch.max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
     beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-    
-    '''print("S_torch.requires_grad:", S_torch.requires_grad)
-    print("xbar_torch.requires_grad:", xbar_torch.requires_grad)
-    print("gamma1.requires_grad:", gamma1.requires_grad)
-    print("alpha.requires_grad:", alpha.requires_grad)
-    print("eta.requires_grad:", eta.requires_grad)
-    print("H.requires_grad:", H.requires_grad)
-    print("Ht.requires_grad:", Ht.requires_grad)
-    print("B.requires_grad:", B.requires_grad)
-    print("alpha_hat.requires_grad:", alpha_hat.requires_grad)
-    print("K.requires_grad:", K.requires_grad)
-    print("G.requires_grad:", G.requires_grad)
-    print("Gt.requires_grad:", Gt.requires_grad)
-    print("T.requires_grad:", T.requires_grad)
-    print("r1.requires_grad:", r1.requires_grad)
-    print("t22.requires_grad:", t22.requires_grad)
-    print("t33.requires_grad:", t33.requires_grad)
-    print("r2.requires_grad:", r2.requires_grad)
-    #print("min_kappa.requires_grad:", min_kappa.requires_grad)
-    print("kappa.requires_grad:", kappa.requires_grad)
-    print("beta.requires_grad:", beta.requires_grad)'''
     
     gamma1 = G[:,0]
     gamma2 = G[:,1]

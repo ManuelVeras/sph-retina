@@ -2,6 +2,7 @@ import torch
 import sys
 import pdb
 from sphdet.bbox.kent_formator_torch import kent_me_matrix_torch, get_me_matrix_torch
+from memory_profiler import profile
 
 def project_equirectangular_to_sphere(u, w, h):
     """
@@ -40,7 +41,7 @@ def sample_from_annotation_deg(annotation, shape):
     a_lat = torch.deg2rad(fov_v)
     a_long = torch.deg2rad(fov_h)
 
-    r = 11
+    r = 3
     epsilon = 1e-6  # Increased epsilon for better numerical stability
     d_lat = r / (2 * torch.tan(a_lat / 2 + epsilon))
     d_long = r / (2 * torch.tan(a_long / 2 + epsilon))
@@ -87,6 +88,8 @@ def sample_from_annotation_deg(annotation, shape):
     v = h - (-alpha / torch.pi + 1. / 2.) * h
     return project_equirectangular_to_sphere(torch.vstack((u, v)).T, w, h)
 
+
+#@profile
 def deg2kent_single(annotations, h=960, w=1920):
     """
     Converts annotations in degrees to Kent distribution parameters.
@@ -99,20 +102,37 @@ def deg2kent_single(annotations, h=960, w=1920):
     Returns:
         torch.Tensor: Kent distribution parameters.
     """
-    Xs = sample_from_annotation_deg(annotations, (h, w))
-    S_torch, xbar_torch = get_me_matrix_torch(Xs)
-    k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
     
-    assert S_torch.requires_grad, "S_torch does not support backpropagation"
-    assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
-    assert k_torch.requires_grad, "k_torch does not support backpropagation"
     
-    return k_torch
+    if annotations.ndim == 1:
+        annotations = annotations.unsqueeze(0)  # Convert to batch of size 1
+
+    kent_params = []
+    for idx, annotation in enumerate(annotations):
+        #with torch.no_grad():  # Sampling does not require gradient computation
+        Xs = sample_from_annotation_deg(annotation, (h, w))
+        # Ensure Xs is converted back to float32 for stability in subsequent operations
+        #Xs = Xs.float()
+        S_torch, xbar_torch = get_me_matrix_torch(Xs)
+        k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
+       
+        #assert Xs.requires_grad, "Xs does not support backpropagation"
+        #assert S_torch.requires_grad, "S_torch does not support backpropagation"
+        #assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
+        #assert k_torch.requires_grad, "k_torch does not support backpropagation"
+        
+        kent_params.append(k_torch)
+        print(f"Converted {idx + 1}/{len(annotations)} annotations.")
+    
+    return torch.stack(kent_params)
 
 if __name__ == '__main__':
-    annotations = torch.tensor([350.0, 0.0, 23.0, 20.0], dtype=torch.float32, requires_grad=True)
+    annotations = torch.tensor([35.0, 0.0, 23.0, 20.0], dtype=torch.float32, requires_grad=True)
+    
+    annotations_2 = torch.tensor([[35.0, 0.0, 23.0, 20.0], [35.0, 0.0, 23.0, 50.0], [35.0, 10.0, 23.0, 20.0]], dtype=torch.float32, requires_grad=True).half()
+    print(annotations_2)
 
-    kent = deg2kent_single(annotations, 480, 960)
+    kent = deg2kent_single(annotations_2, 480, 960)
     print("Kent:", kent)
     
     if not kent.requires_grad:
@@ -128,4 +148,4 @@ if __name__ == '__main__':
         print("Loss does not require gradients")
     
     print("Loss Grad:", loss.grad)
-    print("Annotations Grad:", annotations.grad)
+    print("Annotations Grad:", annotations_2.grad)

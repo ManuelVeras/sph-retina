@@ -67,39 +67,15 @@ def c_approximation(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The approximated c value.
     """
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
     exp_kappa = torch.exp(kappa)
     
     term1 = kappa - 2 * beta
     term2 = kappa + 2 * beta
-    
-    # Debug prints to inspect intermediate values
-    #print("kappa:", kappa)
-    #print("beta:", beta)
-    #print("term1:", term1)
-    #print("term2:", term2)
-    
     product = term1 * term2
-    #print("product:", product)
     
-    #if torch.isnan(product).any() or torch.isinf(product).any():
-    #    print("NaN or Inf detected in product")
-    
-    #if (product < 0).any():
-    #    print("Negative values detected in product")
-    
-    denominator = (product + epsilon)**(-0.5)  # Add epsilon to avoid division by zero
-    
-    # More debug prints
-    #print("denominator:", denominator)
-    
-    #if torch.isnan(denominator).any() or torch.isinf(denominator).any():
-    #    print("NaN or Inf detected in denominator")
-    #print('2 * torch.pi * exp_kappa = ', 2 * torch.pi * exp_kappa)
-    
-    result = 2 * torch.pi * exp_kappa * denominator
-    
-    #print("kld:", result)
+    denominator = torch.sqrt(product)+epsilon
+    result = 2 * torch.pi * exp_kappa / denominator
     
     check_nan_inf(result, "c_approximation")
     return result
@@ -115,7 +91,7 @@ def del_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The derivative of kappa.
     """
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
 
     numerator = -2 * torch.pi * (4 * beta**2 + kappa - kappa**2) * torch.exp(kappa)
     denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2) + epsilon  # Add epsilon to avoid division by zero
@@ -134,7 +110,7 @@ def del_2_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The second derivative of kappa.
     """
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
 
     numerator = 2 * torch.pi * (kappa**4 - 2 * kappa**3 + (2 - 8 * beta**2) * kappa**2 + 8 * beta**2 * kappa + 16 * beta**4 + 4 * beta**2) * torch.exp(kappa)
     denominator = (kappa - 2 * beta)**(5/2) * (kappa + 2 * beta)**(5/2) + epsilon  # Add epsilon to avoid division by zero
@@ -153,7 +129,7 @@ def del_beta(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The derivative of beta.
     """
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
 
     numerator = 8 * torch.pi * torch.exp(kappa) * beta
     denominator = (kappa - 2 * beta)**(3/2) * (kappa + 2 * beta)**(3/2) + epsilon  # Add epsilon to avoid division by zero
@@ -173,7 +149,7 @@ def expected_x(gamma_a1: torch.Tensor, c: torch.Tensor, c_k: torch.Tensor) -> to
     Returns:
         torch.Tensor: The expected value of x.
     """
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
     const = (c_k / (c+epsilon)).view(-1, 1)
     result = const * gamma_a1
     check_nan_inf(result, "expected_x")
@@ -195,7 +171,7 @@ def expected_xxT(kappa: torch.Tensor, beta: torch.Tensor, Q_matrix: torch.Tensor
     """
     c_kk = del_2_kappa(kappa, beta)
     c_beta = del_beta(kappa, beta)
-    epsilon = 1e-8  # Small value to avoid division by zero
+    epsilon = 1e-6  # Small value to avoid division by zero
 
     lambda_1 = c_k / c
     lambda_2 = (c - c_kk + c_beta) / (2 * c + epsilon)  # Add epsilon to avoid division by zero
@@ -365,6 +341,7 @@ def get_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
     kld = kld_matrix(kappa_a, beta_a, gamma_a1, gamma_a2, gamma_a3,
                             kappa_b, beta_b, gamma_b1, gamma_b2, gamma_b3,
                             Ex_a, ExxT_a, c_a, c_b, c_ka)
+    
     check_nan_inf(kld, "get_kld")
     return kld
 
@@ -380,30 +357,49 @@ def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float =
     Returns:
         torch.Tensor: The Kent loss.
     """
-    # Ensure the first three columns are between -pi and pi,
-    # and the last two columns are greater than 0 and less than a constant
-    
-    '''invalid_a_first_three = ~(kent_pred[:, :3].ge(-torch.pi) & kent_pred[:, :3].le(torch.pi))
-    invalid_a_last_two = ~(kent_pred[:, 3:].gt(0) & kent_pred[:, 3:].lt(200))
-    invalid_b_first_three = ~(kent_target[:, :3].ge(-torch.pi) & kent_target[:, :3].le(torch.pi))
-    invalid_b_last_two = ~(kent_target[:, 3:].gt(0) & kent_target[:, 3:].lt(200))
+    eps = 1e-6
 
-    invalid_a_first_three_indices = invalid_a_first_three.nonzero(as_tuple=True)
-    invalid_a_last_two_indices = invalid_a_last_two.nonzero(as_tuple=True)
-    invalid_b_first_three_indices = invalid_b_first_three.nonzero(as_tuple=True)
-    invalid_b_last_two_indices = invalid_b_last_two.nonzero(as_tuple=True)'''
-
-    if torch.all(kent_target == 0):
-        #print("Tensor contains all zeros")
-        pass
-    else:
-        #print("Tensor does not contain all zeros")
-        #GAMBIARRA Absurda
-        eps = 1e-7
-        kent_target[..., 3].clamp_(min=10, max=50)
-        kent_target[..., 4].clamp_(min=eps, max=25)
+    for kent_dist in [kent_pred, kent_target]:
+        if not torch.all(kent_dist == 0):
+            # Clamp the fourth column (kappa)
+            kent_dist[..., 3].clamp_(min=10, max=50)
+            
+            # Calculate the maximum allowed value for beta (2 * kappa)
+            max_beta = 2 * kent_dist[..., 3]
+            
+            # Create tensors for min and max values
+            min_beta = torch.full_like(kent_dist[..., 4], eps)
+            max_beta_25 = torch.full_like(max_beta, 24)
+            
+            # Clamp the fifth column (beta) to be between eps and the smaller of max_beta and 25
+            kent_dist[..., 4] = torch.clamp(
+                kent_dist[..., 4],
+                min=min_beta,
+                max=torch.minimum(max_beta, max_beta_25)
+            )
     
     kld = get_kld(kent_pred, kent_target)
+    
+    # Debug: Check for negative KLD values
+    negative_kld_mask = kld < 0
+    if negative_kld_mask.any():
+        negative_indices = torch.nonzero(negative_kld_mask, as_tuple=True)
+        print(f"Negative KLD values found at indices: {list(zip(*negative_indices))}")
+        print(f"Shape of kld tensor: {kld.shape}")
+        print(f"Shape of kent_pred tensor: {kent_pred.shape}")
+        print(f"Shape of kent_target tensor: {kent_target.shape}")
+        print("Sample of negative KLD values:")
+        print(kld[negative_kld_mask][:10])  # Print first 10 negative values
+
+        if len(negative_indices) == 2:  # If kld is 2D
+            row_indices, col_indices = negative_indices
+            print("Sample of corresponding kent_pred values:")
+            print(kent_pred_clamped[row_indices[:10]])  # Print first 10 corresponding pred values
+            print("Sample of corresponding kent_target values:")
+            print(kent_target_clamped[col_indices[:10]])  # Print first 10 corresponding target values
+
+    pdb.set_trace()
+    check_nan_inf(kld, "kld")
     
     result = 1 - 1 / (const + torch.sqrt(kld))
     check_nan_inf(result, "kent_loss")
@@ -437,13 +433,15 @@ class OnlyKentLoss(nn.Module):
         Returns:
             torch.Tensor: The calculated loss.
         """
-        kent_pred = SphBox2KentTransform()(pred)
-        kent_target = SphBox2KentTransform()(target)
-        pdb.set_trace()
+        transformer = SphBox2KentTransform()
+        
+        kent_pred = transformer(pred)
+        kent_target = transformer(target)
         return kent_loss(kent_pred, kent_target)
     
 if __name__ == "__main__":
-    pred = torch.tensor([350.0, 0.0, 20.0, 20.0], dtype=torch.float32, requires_grad=True)
-    target = torch.tensor([350.0, 0.0, 20.0, 20.0], dtype=torch.float32, requires_grad=True)
+    pred = torch.tensor([0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()
+    pred = torch.randn(432, 4, dtype=torch.float32, requires_grad=True)#$.half()
+    target = torch.tensor([0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()
     loss = OnlyKentLoss()(pred, target)
     print(loss)

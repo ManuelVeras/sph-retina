@@ -3,9 +3,7 @@ import math
 import torch
 import sys
 import os
-#from sphdet.bbox.kent_formator import deg2kent, deg2kent_approx
-from sphdet.bbox.kent_formator_torch_simple import deg2kent_torch
-from kent_formator import deg2kent_single_torch
+from sphdet.bbox.deg2kent_single import deg2kent_single
 from scipy.special import gamma as gamma_fun
 from scipy.special import iv as modified_bessel_2ndkind
 from scipy.special import ivp as modified_bessel_2ndkind_derivative
@@ -95,7 +93,7 @@ def _pix2sph_box_transform(boxes, img_size):
 
 def _sph_box2kent_transform(boxes, img_size):
     img_h, img_w = img_size
-    return deg2kent_single_torch(boxes, img_h, img_w)
+    return deg2kent_single(boxes, img_h, img_w)
 
 
 def _sph_box2kent_transform_approximation(boxes, img_size):
@@ -255,3 +253,14 @@ def bbox2roi(bbox_list, box_version=4):
         rois_list.append(rois)
     rois = torch.cat(rois_list, 0)
     return rois
+
+if __name__ == "__main__":
+    # Example usage of SphBox2KentTransform
+    transformer = SphBox2KentTransform()
+    # Create a sample input tensor for boxes
+    sample_boxes = torch.randn(18432, 4, dtype=torch.float32, requires_grad=True)
+    # Define image size
+    img_size = (512, 1024)
+    # Transform the boxes
+    transformed_boxes = transformer(sample_boxes, img_size)
+    print("Transformed Boxes:", transformed_boxes)
