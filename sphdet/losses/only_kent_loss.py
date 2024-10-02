@@ -3,6 +3,9 @@ import pdb
 import torch.nn as nn
 from mmdet.models.builder import LOSSES
 from sphdet.bbox.box_formator import SphBox2KentTransform
+torch.autograd.set_detect_anomaly(True)
+
+
 
 def check_nan_inf(tensor: torch.Tensor, name: str):
     """
@@ -345,40 +348,26 @@ def get_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
     check_nan_inf(kld, "get_kld")
     return kld
 
-def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 2.0) -> torch.Tensor:
-    """
-    Calculate the Kent loss between predicted and target Kent distributions.
-    
-    Args:
-        kent_pred (torch.Tensor): The predicted Kent distribution parameters.
-        kent_target (torch.Tensor): The target Kent distribution parameters.
-        const (float, optional): The constant value for the loss calculation. Defaults to 2.0.
-    
-    Returns:
-        torch.Tensor: The Kent loss.
-    """
-    eps = 1e-6
+def soft_clamp_kent_dist(kent_dist, kappa_min=10, kappa_max=50, beta_max=23, temperature=1.0):
+    # Extract components
+    psi, alpha, eta, kappa, beta = kent_dist.unbind(-1)
 
-    for kent_dist in [kent_pred, kent_target]:
-        if not torch.all(kent_dist == 0):
-            # Clamp the fourth column (kappa)
-            kent_dist[..., 3].clamp_(min=10, max=50)
-            
-            # Calculate the maximum allowed value for beta (2 * kappa)
-            max_beta = 2 * kent_dist[..., 3]
-            
-            # Create tensors for min and max values
-            min_beta = torch.full_like(kent_dist[..., 4], eps)
-            max_beta_25 = torch.full_like(max_beta, 24)
-            
-            # Clamp the fifth column (beta) to be between eps and the smaller of max_beta and 25
-            kent_dist[..., 4] = torch.clamp(
-                kent_dist[..., 4],
-                min=min_beta,
-                max=torch.minimum(max_beta, max_beta_25)
-            )
-    
-    kld = get_kld(kent_pred, kent_target)
+    # Soft clamp kappa between kappa_min and kappa_max
+    kappa_range = kappa_max - kappa_min
+    kappa_clamped = kappa_min + kappa_range * torch.sigmoid((kappa - kappa_min) / temperature)
+
+    # Soft clamp beta between 0 and min(2*kappa, beta_max)
+    max_beta = torch.minimum(0.45 * kappa_clamped, torch.full_like(kappa_clamped, beta_max))
+    beta_clamped = max_beta * torch.sigmoid(beta / temperature)
+
+    # Combine the results
+    return torch.stack([psi, alpha, eta, kappa_clamped, beta_clamped], dim=-1)
+
+def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 2.0) -> torch.Tensor:
+    kent_pred_clamped = soft_clamp_kent_dist(kent_pred)
+    kent_target_clamped = soft_clamp_kent_dist(kent_target)
+
+    kld = get_kld(kent_pred_clamped, kent_target_clamped)
     
     # Debug: Check for negative KLD values
     negative_kld_mask = kld < 0
@@ -398,7 +387,6 @@ def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float =
             print("Sample of corresponding kent_target values:")
             print(kent_target_clamped[col_indices[:10]])  # Print first 10 corresponding target values
 
-    pdb.set_trace()
     check_nan_inf(kld, "kld")
     
     result = 1 - 1 / (const + torch.sqrt(kld))
@@ -435,9 +423,23 @@ class OnlyKentLoss(nn.Module):
         """
         transformer = SphBox2KentTransform()
         
+        print("pred shape:", pred.shape)
+        print("pred min/max:", pred.min().item(), pred.max().item())
+        
         kent_pred = transformer(pred)
         kent_target = transformer(target)
-        return kent_loss(kent_pred, kent_target)
+        
+        print("kent_pred shape:", kent_pred.shape)
+        print("kent_pred min/max:", kent_pred.min().item(), kent_pred.max().item())
+        print("kent_target shape:", kent_target.shape)
+        print("kent_target min/max:", kent_target.min().item(), kent_target.max().item())
+        
+        loss = kent_loss(kent_pred, kent_target)
+        
+        print("loss shape:", loss.shape)
+        print("loss min/max:", loss.min().item(), loss.max().item())
+        
+        return loss
     
 if __name__ == "__main__":
     pred = torch.tensor([0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()

@@ -24,7 +24,15 @@ torch.autograd.set_detect_anomaly(True)  # Enable anomaly detection
 
 #helper function
 def MMul(A, B):
-  return torch.inner(A, torch.transpose(B, 0, 1))
+  result = torch.inner(A, torch.transpose(B, 0, 1))
+  result.register_hook(hook_fn)
+  return result
+
+def hook_fn(grad):
+    print("Gradient in backward pass:")
+    print(grad)
+    print("Contains NaN:", torch.isnan(grad).any())
+    print("Contains Inf:", torch.isinf(grad).any())
 
 #helper function to compute the L2 norm. torch.linalg.norm is not used because this function does not allow to choose an axis
 def norm(x, axis=None):
