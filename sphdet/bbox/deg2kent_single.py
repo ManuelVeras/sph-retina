@@ -109,10 +109,7 @@ def deg2kent_single(annotations, h=960, w=1920):
 
     kent_params = []
     for idx, annotation in enumerate(annotations):
-        #with torch.no_grad():  # Sampling does not require gradient computation
         Xs = sample_from_annotation_deg(annotation, (h, w))
-        # Ensure Xs is converted back to float32 for stability in subsequent operations
-        #Xs = Xs.float()
         S_torch, xbar_torch = get_me_matrix_torch(Xs)
         k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
        

@@ -22,20 +22,11 @@ import warnings
 import pdb
 #from efficient_sample_from_annotation import sampleFromAnnotation_deg
 
-torch.autograd.set_detect_anomaly(True)  # Enable anomaly detection
-
-#helper function
-def MMul(a, b):
-    result = torch.matmul(a, b)
-    if result.requires_grad:
-        result.register_hook(hook_fn)
-    return result
-
 def hook_fn(grad):
-    print("Gradient in backward pass:")
-    print(grad)
-    print("Contains NaN:", torch.isnan(grad).any())
-    print("Contains Inf:", torch.isinf(grad).any())
+    #print("Gradient in backward pass:")
+    #print(grad)
+    #print("Contains NaN:", torch.isnan(grad).any())
+    #print("Contains Inf:", torch.isinf(grad).any())
 
 #helper function to compute the L2 norm. torch.linalg.norm is not used because this function does not allow to choose an axis
 def norm(x, axis=None):
@@ -126,14 +117,8 @@ class KentDistribution(object):
 
   @staticmethod
   def gamma1_to_spherical_coordinates(gamma1):
-    def safe_arccos(x, eps=1e-6):
-      return torch.arccos(torch.clamp(x, -1 + eps, 1 - eps))
-
-    def safe_arctan2(y, x, eps=1e-6):
-      return torch.atan2(y, x + eps * (x == 0).float())
-
-    alpha = safe_arccos(gamma1[0])
-    eta = safe_arctan2(gamma1[2], gamma1[1])
+    alpha = arccos(gamma1[0])
+    eta = arctan2(gamma1[2], gamma1[1])
     return alpha, eta
 
   @staticmethod
@@ -449,191 +434,225 @@ def MMul(a, b):
         result.register_hook(hook_fn)
     return result
 
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from only_kent_loss import OnlyKentLoss
+
+import torch
+import torch.nn as nn
+
+def verbose_log(tensor, name):
+    print(f"{name} shape: {tensor.shape}")
+    print(f"{name} min/max: {tensor.min().item():.4e}/{tensor.max().item():.4e}")
+    print(f"{name} mean/std: {tensor.mean().item():.4e}/{tensor.std().item():.4e}")
+    print(f"{name} has NaN: {torch.isnan(tensor).any().item()}")
+    print(f"{name} has Inf: {torch.isinf(tensor).any().item()}")
+
+def safe_div(a, b, eps=1e-8):
+    return a / (b + eps)
+
+class SafeMatmul(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, a, b):
+        ctx.save_for_backward(a, b)
+        return torch.matmul(a, b)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        a, b = ctx.saved_tensors
+        grad_a = grad_b = None
+        if ctx.needs_input_grad[0]:
+            grad_a = torch.matmul(grad_output, b.t())
+        if ctx.needs_input_grad[1]:
+            grad_b = torch.matmul(a.t(), grad_output)
+        
+        # Clip gradients to prevent inf values
+        max_grad = 1e15
+        grad_a = torch.clamp(grad_a, -max_grad, max_grad) if grad_a is not None else None
+        grad_b = torch.clamp(grad_b, -max_grad, max_grad) if grad_b is not None else None
+        
+        return grad_a, grad_b
+
+def safe_matmul(a, b):
+    return SafeMatmul.apply(a, b)
+
+class GradientClippingHook:
+    def __init__(self, max_norm):
+        self.max_norm = max_norm
+
+    def __call__(self, grad):
+        return torch.nn.utils.clip_grad_norm_(grad, self.max_norm)
+
 def kent_me_matrix_torch(S_torch, xbar_torch):
-    # Ensure S_torch and xbar_torch are floating-point tensors with gradients enabled
-    S_torch = S_torch.float().requires_grad_(True)
-    xbar_torch = xbar_torch.float().requires_grad_(True)
-    #print("S_torch requires_grad:", S_torch.requires_grad)
-    #print("xbar_torch requires_grad:", xbar_torch.requires_grad)
+    # Convert to double precision
+    S_torch = S_torch.double().requires_grad_(True)
+    xbar_torch = xbar_torch.double().requires_grad_(True)
     
-    gamma1 = xbar_torch / norm(xbar_torch, axis=0)  # Ensure axis is specified
-    #print("gamma1 requires_grad:", gamma1.requires_grad)
-    #print("gamma1:", gamma1)
+    verbose_log(S_torch, "S_torch")
+    verbose_log(xbar_torch, "xbar_torch")
+    
+    gamma1 = safe_div(xbar_torch, torch.norm(xbar_torch, dim=-1, keepdim=True))
+    verbose_log(gamma1, "gamma1")
+    
     alpha, eta = KentDistribution.gamma1_to_spherical_coordinates(gamma1)
-
-    eps = 1e-6
-    #alpha = torch.arccos(torch.clamp(gamma1, -1 + eps, 1 - eps))
-
-    #print("alpha", alpha)
-    #print("eta", eta)
-
+    verbose_log(alpha, "alpha")
+    verbose_log(eta, "eta")
     
     H = KentDistribution.create_matrix_H(alpha, eta)
     Ht = KentDistribution.create_matrix_Ht(alpha, eta)
-
-
-    #print("H requires_grad:", H.requires_grad)
-    #print("Ht requires_grad:", Ht.requires_grad)
+    verbose_log(H, "H")
+    verbose_log(Ht, "Ht")
     
-    B = MMul(Ht, MMul(S_torch, H)) 
-    #print("B requires_grad:", B.requires_grad)
+    B = safe_matmul(Ht, safe_matmul(S_torch, H))
+    verbose_log(B, "B")
     
     alpha_hat = 0.5 * torch.atan2(2 * B[1, 2], B[1, 1] - B[2, 2])
-    #print("alpha_hat requires_grad:", alpha_hat.requires_grad)
+    verbose_log(alpha_hat, "alpha_hat")
 
-    # Use operations that maintain requires_grad
     K = torch.stack([
-        torch.tensor([1, 0, 0], dtype=S_torch.dtype, device=S_torch.device),
-        torch.stack([torch.tensor(0, dtype=S_torch.dtype, device=S_torch.device), torch.cos(alpha_hat), -torch.sin(alpha_hat)]),
-        torch.stack([torch.tensor(0, dtype=S_torch.dtype, device=S_torch.device), torch.sin(alpha_hat), torch.cos(alpha_hat)])
+        torch.tensor([1, 0, 0], dtype=torch.float64, device=S_torch.device),
+        torch.stack([torch.tensor(0, dtype=torch.float64, device=S_torch.device), torch.cos(alpha_hat), -torch.sin(alpha_hat)]),
+        torch.stack([torch.tensor(0, dtype=torch.float64, device=S_torch.device), torch.sin(alpha_hat), torch.cos(alpha_hat)])
     ])
-
-    #print("H shape:", H.shape)
-    #print("H min/max:", H.min().item(), H.max().item())
-    #print("K shape:", K.shape)
-    #print("K min/max:", K.min().item(), K.max().item())
-
+    verbose_log(K, "K")
     
-    G = MMul(H, K)
-    
-    #return G
-
-    #print("G shape:", G.shape)
-    #print("G min/max:", G.min().item(), G.max().item())
+    G = safe_matmul(H, K)
+    verbose_log(G, "G")
 
     Gt = torch.transpose(G, 0, 1)
-    T = MMul(Gt, MMul(S_torch, G))
+    T = safe_matmul(Gt, safe_matmul(S_torch, G))
+    verbose_log(T, "T")
     
-    r1 = norm(xbar_torch)
+    r1 = torch.norm(xbar_torch, dim=-1)
     t22, t33 = T[1, 1], T[2, 2]
     r2 = t22 - t33
     
-    min_kappa = torch.tensor(1E-6, dtype=S_torch.dtype, device=S_torch.device)
-    kappa = torch.max(min_kappa, 1.0/(2.0-2.0*r1-r2) + 1.0/(2.0-2.0*r1+r2))
-    beta  = 0.5*(1.0/(2.0-2.0*r1-r2) - 1.0/(2.0-2.0*r1+r2))
-    
-    #print("kappa requires_grad:", kappa.requires_grad)
-    #print("beta requires_grad:", beta.requires_grad)
+    min_kappa = torch.tensor(1e-6, dtype=torch.float64, device=S_torch.device)
+    kappa = torch.max(min_kappa, safe_div(1.0, (2.0-2.0*r1-r2)) + safe_div(1.0, (2.0-2.0*r1+r2)))
+    beta  = 0.5 * (safe_div(1.0, (2.0-2.0*r1-r2)) - safe_div(1.0, (2.0-2.0*r1+r2)))
+    verbose_log(kappa, "kappa")
+    verbose_log(beta, "beta")
     
     gamma1 = G[:,0]
     gamma2 = G[:,1]
     gamma3 = G[:,2]
   
     psi, alpha, eta = KentDistribution.gammas_to_spherical_coordinates(gamma1, gamma2)
+    verbose_log(psi, "psi")
+    verbose_log(alpha, "final_alpha")
+    verbose_log(eta, "final_eta")
 
-    return torch.stack([psi, alpha, eta, kappa, beta])
+    result = torch.stack([psi, alpha, eta, kappa, beta])
+    result.register_hook(GradientClippingHook(max_norm=1e15))
+    return result
 
-def gradient_check():
-    # Create mock inputs with requires_grad=True
-    S_torch = torch.randn(3, 3, dtype=torch.float64, requires_grad=True)
-    xbar_torch = torch.randn(3, dtype=torch.float64, requires_grad=True)
+class LossScaler(nn.Module):
+    def __init__(self, loss_fn):
+        super().__init__()
+        self.loss_fn = loss_fn
+        self.scale = nn.Parameter(torch.tensor(1.0))
 
-    # Call the function
-    result = kent_me_matrix_torch(S_torch, xbar_torch)
+    def forward(self, *args, **kwargs):
+        loss = self.loss_fn(*args, **kwargs)
+        return loss * torch.exp(self.scale)
 
-    # Create a dummy loss
-    loss = result.sum()
-
-    # Backpropagate
-    loss.backward(retain_graph=True)
-
-    # Check gradients
-    #print("Gradients for S_torch:", S_torch.grad)
-    #print("Gradients for xbar_torch:", xbar_torch.grad)
-
-    # Gradient magnitude check
-    assert S_torch.grad is not None, "Gradient for S_torch is None"
-    assert xbar_torch.grad is not None, "Gradient for xbar_torch is None"
-    assert torch.all(S_torch.grad != 0), "Gradient for S_torch is zero"
-    assert torch.all(xbar_torch.grad != 0), "Gradient for xbar_torch is zero"
-
-    # Gradient consistency check
-    S_torch.grad.zero_()
-    xbar_torch.grad.zero_()
-    loss.backward(retain_graph=True)
-    assert torch.allclose(S_torch.grad, S_torch.grad), "Inconsistent gradients for S_torch"
-    assert torch.allclose(xbar_torch.grad, xbar_torch.grad), "Inconsistent gradients for xbar_torch"
-
-    # Finite differences gradient check
-    epsilon = 1e-5
-    S_torch_fd = S_torch.clone().detach().requires_grad_(True)
-    xbar_torch_fd = xbar_torch.clone().detach().requires_grad_(True)
-    result_fd = kent_me_matrix_torch(S_torch_fd, xbar_torch_fd)
-    loss_fd = result_fd.sum()
-    loss_fd.backward(retain_graph=True)
-
-    numerical_grad_S = torch.zeros_like(S_torch)
-    numerical_grad_xbar = torch.zeros_like(xbar_torch)
-
-    for i in range(S_torch.numel()):
-        S_torch_flat = S_torch.view(-1).clone().detach().requires_grad_(True)
-        S_torch_perturbed_pos = S_torch_flat.clone()
-        S_torch_perturbed_pos[i] += epsilon
-        S_torch_perturbed_pos = S_torch_perturbed_pos.view(S_torch.size())
-        result_pos = kent_me_matrix_torch(S_torch_perturbed_pos, xbar_torch).sum()
-        
-        S_torch_perturbed_neg = S_torch_flat.clone()
-        S_torch_perturbed_neg[i] -= epsilon
-        S_torch_perturbed_neg = S_torch_perturbed_neg.view(S_torch.size())
-        result_neg = kent_me_matrix_torch(S_torch_perturbed_neg, xbar_torch).sum()
-        
-        numerical_grad = (result_pos - result_neg) / (2 * epsilon)
-        numerical_grad_S.view(-1)[i] = numerical_grad
-
-    for i in range(xbar_torch.numel()):
-        xbar_torch_flat = xbar_torch.view(-1).clone().detach().requires_grad_(True)
-        xbar_torch_perturbed_pos = xbar_torch_flat.clone()
-        xbar_torch_perturbed_pos[i] += epsilon
-        xbar_torch_perturbed_pos = xbar_torch_perturbed_pos.view(xbar_torch.size())
-        result_pos = kent_me_matrix_torch(S_torch, xbar_torch_perturbed_pos).sum()
-        
-        xbar_torch_perturbed_neg = xbar_torch_flat.clone()
-        xbar_torch_perturbed_neg[i] -= epsilon
-        xbar_torch_perturbed_neg = xbar_torch_perturbed_neg.view(xbar_torch.size())
-        result_neg = kent_me_matrix_torch(S_torch, xbar_torch_perturbed_neg).sum()
-        
-        numerical_grad = (result_pos - result_neg) / (2 * epsilon)
-        numerical_grad_xbar.view(-1)[i] = numerical_grad
-
-    # Compare numerical gradients with analytical gradients
-    assert torch.allclose(S_torch.grad, numerical_grad_S, atol=1e-4), "Gradient check failed for S_torch"
-    assert torch.allclose(xbar_torch.grad, numerical_grad_xbar, atol=1e-4), "Gradient check failed for xbar_torch"
-
-    print("Numerical gradients match analytical gradients.")
-
-
-def minimal_example():
-    # Create sample input data
-    batch_size = 1
-    S_torch = torch.randn(3, 3, requires_grad=True)
-    xbar_torch = torch.randn(3, requires_grad=True)
-
-    # Define a simple model with trainable parameters
-    class SimpleModel(nn.Module):
-        def __init__(self):
-            super(SimpleModel, self).__init__()
-            self.weight = nn.Parameter(torch.randn(3, 3))
-            self.bias = nn.Parameter(torch.randn(3))
-
-        def forward(self, S, xbar):
-            # Apply some transformation using the trainable parameters
-            S_transformed = torch.matmul(S, self.weight) + self.bias
-            xbar_transformed = torch.matmul(xbar, self.weight) + self.bias
-            return kent_me_matrix_torch(S_transformed, xbar_transformed)
-
-    model = SimpleModel()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    # Training loop
-    for epoch in range(10):
+def train_with_anomaly_detection(model, criterion, optimizer, input_data, target):
+    with torch.autograd.detect_anomaly():
+        output = model(input_data)
+        loss = criterion(output, target).mean()
         optimizer.zero_grad()
-        output = model(S_torch, xbar_torch)
-        loss = output.sum()  # Simple loss function
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+    return loss
 
-        print(f"Epoch {epoch}, Loss: {loss.item()}")
+def main():
+    model = SimpleModel().double()  # Convert model to double precision
+    criterion = LossScaler(OnlyKentLoss())  # Wrap your custom loss with LossScaler
+    optimizer = torch.optim.Adam(list(model.parameters()) + list(criterion.parameters()), lr=0.001)
+
+    batch_size = 32
+    input_data = torch.randn(batch_size, 4, dtype=torch.float64, requires_grad=True)
+    target = torch.tensor([[0.0, 0.0, 40.0, 40.0]] * batch_size, dtype=torch.float64)
+
+    num_epochs = 100
+    for epoch in range(num_epochs):
+        try:
+            loss = train_with_anomaly_detection(model, criterion, optimizer, input_data, target)
+            if (epoch + 1) % 10 == 0:
+                print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+        except RuntimeError as e:
+            print(f"Error occurred in epoch {epoch+1}: {str(e)}")
+            break
+
+
+# 2. Gradient Checking
+def gradient_check(model, loss_fn, input_data, target):
+    eps = 1e-6
+    for name, param in model.named_parameters():
+        param.requires_grad = False
+        original = param.clone()
+        for i in range(param.numel()):
+            param.flatten()[i] += eps
+            output = model(input_data)
+            loss_plus = loss_fn(output, target)
+            
+            param.flatten()[i] -= 2 * eps
+            output = model(input_data)
+            loss_minus = loss_fn(output, target)
+            
+            param.flatten()[i] += eps
+            numeric_grad = (loss_plus - loss_minus) / (2 * eps)
+            
+            param.requires_grad = True
+            output = model(input_data)
+            loss = loss_fn(output, target)
+            loss.backward()
+            analytic_grad = param.grad.flatten()[i].item()
+            param.grad.zero_()
+            
+            if abs(numeric_grad - analytic_grad) > 1e-5:
+                print(f"Gradient mismatch for {name}[{i}]: numeric={numeric_grad:.6f}, analytic={analytic_grad:.6f}")
+        param.data = original
+        param.requires_grad = True
+
+# 3. Input Data Validation
+def validate_input(tensor, name):
+    if torch.isnan(tensor).any():
+        raise ValueError(f"NaN detected in {name}")
+    if torch.isinf(tensor).any():
+        raise ValueError(f"Inf detected in {name}")
+
+# 4. Layer-by-Layer Analysis
+class SimpleModel(nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.fc1 = nn.Linear(4, 8)
+        self.fc2 = nn.Linear(8, 4)
+
+    def forward(self, x):
+        verbose_log(x, "Model Input")
+        x = self.fc1(x)
+        verbose_log(x, "After FC1")
+        x = torch.relu(x)
+        verbose_log(x, "After ReLU")
+        x = self.fc2(x)
+        verbose_log(x, "Model Output")
+        return x
+
+
+
+
+
+# 1. Implement Gradient Clipping
+def clip_gradient(model, clip_value):
+    for param in model.parameters():
+        if param.grad is not None:
+            param.grad.data.clamp_(-clip_value, clip_value)
+
+
 
 if __name__ == "__main__":
-    #gradient_check()
-    minimal_example()
+    main()
