@@ -112,14 +112,10 @@ def deg2kent_single(annotations, h=960, w=1920):
         Xs = sample_from_annotation_deg(annotation, (h, w))
         S_torch, xbar_torch = get_me_matrix_torch(Xs)
         k_torch = kent_me_matrix_torch(S_torch, xbar_torch)
-       
-        #assert Xs.requires_grad, "Xs does not support backpropagation"
-        #assert S_torch.requires_grad, "S_torch does not support backpropagation"
-        #assert xbar_torch.requires_grad, "xbar_torch does not support backpropagation"
-        #assert k_torch.requires_grad, "k_torch does not support backpropagation"
         
         kent_params.append(k_torch)
-        print(f"Converted {idx + 1}/{len(annotations)} annotations.")
+        #print(f"Converted {idx + 1}/{len(annotations)} annotations.")
+    print('Finished converting annotations to kent params')
     
     return torch.stack(kent_params)
 

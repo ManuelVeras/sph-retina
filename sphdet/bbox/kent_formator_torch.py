@@ -32,10 +32,11 @@ def MMul(a, b):
     return result
 
 def hook_fn(grad):
-    print("Gradient in backward pass:")
-    print(grad)
-    print("Contains NaN:", torch.isnan(grad).any())
-    print("Contains Inf:", torch.isinf(grad).any())
+    #print("Gradient in backward pass:")
+    #print(grad)
+    #print("Contains NaN:", torch.isnan(grad).any())
+    #print("Contains Inf:", torch.isinf(grad).any())
+    pass
 
 #helper function to compute the L2 norm. torch.linalg.norm is not used because this function does not allow to choose an axis
 def norm(x, axis=None):

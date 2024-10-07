@@ -3,7 +3,7 @@ import pdb
 import torch.nn as nn
 from mmdet.models.builder import LOSSES
 from sphdet.bbox.box_formator import SphBox2KentTransform
-
+torch.autograd.set_detect_anomaly(True)
 
 
 
@@ -363,9 +363,6 @@ def soft_clamp_kent_dist(kent_dist, kappa_min=10, kappa_max=50, beta_max=23, tem
     # Combine the results
     return torch.stack([psi, alpha, eta, kappa_clamped, beta_clamped], dim=-1)
 
-def l1_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 2.0) -> torch.Tensor:
-    return torch.abs(kent_pred - kent_target).mean(dim=-1)
-
 def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 2.0) -> torch.Tensor:
     kent_pred_clamped = soft_clamp_kent_dist(kent_pred)
     kent_target_clamped = soft_clamp_kent_dist(kent_target)
@@ -394,37 +391,14 @@ def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float =
     
     result = 1 - 1 / (const + torch.sqrt(kld))
     check_nan_inf(result, "kent_loss")
-
-    # Additional checks for unusual values
-    if torch.isnan(result).any():
-        print("NaN values detected in the loss!")
-        nan_indices = torch.nonzero(torch.isnan(result), as_tuple=True)
-        print(f"NaN indices: {list(zip(*nan_indices))}")
-    
-    if torch.isinf(result).any():
-        print("Inf values detected in the loss!")
-        inf_indices = torch.nonzero(torch.isinf(result), as_tuple=True)
-        print(f"Inf indices: {list(zip(*inf_indices))}")
-    
-    # Check for unusually large or small values
-    large_value_threshold = 1e5
-    small_value_threshold = 1e-5
-    large_values_mask = result > large_value_threshold
-    small_values_mask = (result < small_value_threshold) & (result > 0)  # Exclude zero
-    
-    if large_values_mask.any():
-        print(f"Unusually large values (>{large_value_threshold}) detected in the loss!")
-        large_indices = torch.nonzero(large_values_mask, as_tuple=True)
-        print(f"Large value indices: {list(zip(*large_indices))}")
-        print(f"Large values: {result[large_values_mask]}")
-    
-    if small_values_mask.any():
-        print(f"Unusually small values (<{small_value_threshold}) detected in the loss!")
-        small_indices = torch.nonzero(small_values_mask, as_tuple=True)
-        print(f"Small value indices: {list(zip(*small_indices))}")
-        print(f"Small values: {result[small_values_mask]}")
-
     return result
+
+def hook_fn(grad):
+    #print("Gradient in backward pass:")
+    #print(grad)
+    #print("Contains NaN:", torch.isnan(grad).any())
+    #print("Contains Inf:", torch.isinf(grad).any())
+    pass
 
 @LOSSES.register_module()
 class OnlyKentLoss(nn.Module):
@@ -456,82 +430,31 @@ class OnlyKentLoss(nn.Module):
         """
         transformer = SphBox2KentTransform()
         
-        print("pred shape:", pred.shape)
-        print("pred min/max:", pred.min().item(), pred.max().item())
+        #print("pred shape:", pred.shape)
+        #print("pred min/max:", pred.min().item(), pred.max().item())
         
         kent_pred = transformer(pred)
         kent_target = transformer(target)
         
-        print("kent_pred shape:", kent_pred.shape)
-        print("kent_pred min/max:", kent_pred.min().item(), kent_pred.max().item())
-        print("kent_target shape:", kent_target.shape)
-        print("kent_target min/max:", kent_target.min().item(), kent_target.max().item())
+        #print("kent_pred shape:", kent_pred.shape)
+        #print("kent_pred min/max:", kent_pred.min().item(), kent_pred.max().item())
+        #print("kent_target shape:", kent_target.shape)
+        #print("kent_target min/max:", kent_target.min().item(), kent_target.max().item())
         
-        loss = kent_loss(kent_pred, kent_target).mean()
+        kent_pred.register_hook(hook_fn)
+        kent_target.register_hook(hook_fn)
+        
+        loss = kent_loss(kent_pred, kent_target)
         
         print("loss shape:", loss.shape)
         print("loss min/max:", loss.min().item(), loss.max().item())
         
         return loss
     
-'''if __name__ == __main__0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()
+if __name__ == "__main__":
+    pred = torch.tensor([0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()
     pred = torch.randn(432, 4, dtype=torch.float32, requires_grad=True)#$.half()
     target = torch.tensor([0.0, 0.0, 40.0, 40.0], dtype=torch.float32, requires_grad=True)#.half()
     loss = OnlyKentLoss()(pred, target)
-    print(loss)'''
-
-        # Bacimport torch
-import torch.nn as nn
-import torch.optim as optim
-
-class SimpleModel(nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.fc = nn.Linear(4, 4)  # Simple linear layer
-
-    def forward(self, x):
-        return self.fc(x)
-
-def main():
-    # Set up the model and loss function
-    model = SimpleModel()
-    criterion = OnlyKentLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    # Create mock data
-    batch_size = 32
-    input_data = torch.randn(batch_size, 4, requires_grad=True)
-    target = torch.tensor([[0.0, 0.0, 40.0, 40.0]] * batch_size, dtype=torch.float32)
-
-    # Training loop
-    num_epochs = 100
-    for epoch in range(num_epochs):
-        # Forward pass
-        output = model(input_data)
-        loss = criterion(output, target)
-
-        # Backward pass and optimization
-        optimizer.zero_grad()
-        loss.backward()
-        
-        # Gradient clipping (optional, but can help with stability)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        
-        optimizer.step()
-
-        # Print statistics
-        if (epoch + 1) % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
-
-        # Check for NaN or Inf in gradients
-        for name, param in model.named_parameters():
-            if param.grad is not None:
-                if torch.isnan(param.grad).any():
-                    print(f"NaN detected in gradients of {name}")
-                if torch.isinf(param.grad).any():
-                    print(f"Inf detected in gradients of {name}")
-
-    print("Training completed.")
-
-if __name__ == "__main__":
-    main()
+    loss.backward(retain_graph=True)
+    print(loss)
