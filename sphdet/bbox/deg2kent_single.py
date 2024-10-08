@@ -115,7 +115,7 @@ def deg2kent_single(annotations, h=960, w=1920):
         
         kent_params.append(k_torch)
         #print(f"Converted {idx + 1}/{len(annotations)} annotations.")
-    print('Finished converting annotations to kent params')
+    #print('Finished converting annotations to kent params')
     
     return torch.stack(kent_params)
 

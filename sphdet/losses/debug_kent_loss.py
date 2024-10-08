@@ -438,7 +438,7 @@ def MMul(a, b):
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from only_kent_loss import OnlyKentLoss
+from kent_loss import KentLoss
 
 import torch
 import torch.nn as nn

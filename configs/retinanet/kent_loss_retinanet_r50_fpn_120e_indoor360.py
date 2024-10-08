@@ -3,17 +3,17 @@ _base_ = [
     '../_base_/default_runtime.py',
     '../_base_/schedules/schedule_120e.py',
     '../_base_/datasets/indoor360.py',
-    '../_base_/models/base_only_kent_loss_retinanet_r50_fpn.py',
+    '../_base_/models/base_kent_loss_retinanet_r50_fpn.py',
 ]
 
 # log
-checkpoint_config = dict(interval=25)
-evaluation = dict(interval=5)
+checkpoint_config = dict(interval=10)
+evaluation = dict(interval=10)
 
 #optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
 
 log_config = dict(
-    interval=10,
+    interval=1,
     hooks=[
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook')])
@@ -33,7 +33,7 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='OnlyKentLoss')),
+        loss_bbox=dict(type='KentLoss')),
     train_cfg=dict(
         assigner=dict(
             iou_calculator=dict(
@@ -42,3 +42,6 @@ model = dict(
         nms=dict(iou_threshold=0.5),
         iou_calculator='naive_iou',
         box_formator='sph2pix'))
+
+optimizer_config = dict(
+    _delete_=True, grad_clip=dict(max_norm=1., norm_type=2))
