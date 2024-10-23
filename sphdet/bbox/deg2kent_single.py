@@ -41,7 +41,7 @@ def sample_from_annotation_deg(annotation, shape):
     a_lat = torch.deg2rad(fov_v)
     a_long = torch.deg2rad(fov_h)
 
-    r = 3
+    r = 12
     epsilon = 1e-6  # Increased epsilon for better numerical stability
     d_lat = r / (2 * torch.tan(a_lat / 2 + epsilon))
     d_long = r / (2 * torch.tan(a_long / 2 + epsilon))

@@ -307,7 +307,7 @@ def kld_matrix(kappa_a: torch.Tensor, beta_a: torch.Tensor, gamma_a1: torch.Tens
     beta_a_term_1_expanded, beta_b_term_1 = calculate_beta_term(beta_a, gamma_a2, beta_b, gamma_b2, ExxT_a)
     beta_a_term_2_expanded, beta_b_term_2 = calculate_beta_term(beta_a, gamma_a3, beta_b, gamma_b3, ExxT_a)
     
-    kld = log_term + ex_a_term + beta_a_term_1_expanded - beta_b_term_1 - beta_a_term_2_expanded + beta_b_term_2
+    kld = log_term + ex_a_term+ beta_a_term_1_expanded - beta_b_term_1 - beta_a_term_2_expanded + beta_b_term_2
     check_nan_inf(kld, "kld_matrix")
     return kld
 
@@ -360,7 +360,7 @@ def soft_clamp_kent_dist(kent_dist, kappa_min=10, kappa_max=50, beta_max=23, tem
     # Combine the results
     return torch.stack([psi, alpha, eta, kappa_clamped, beta_clamped], dim=-1)
 
-def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 2.0) -> torch.Tensor:
+def kent_loss(kent_pred: torch.Tensor, kent_target: torch.Tensor, const: float = 1.0) -> torch.Tensor:
     kent_pred_clamped = soft_clamp_kent_dist(kent_pred)
     kent_target_clamped = soft_clamp_kent_dist(kent_target)
 
